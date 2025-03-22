@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+# IDE files
+/.idea/
+/.vs/
+/.vscode/
+
+/x64/
+/E-Buy-API/
