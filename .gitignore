@@ -36,5 +36,7 @@
 /.vs/
 /.vscode/
 
+# Build files
+/cmake-build-debug/
 /x64/
 /E-Buy-API/

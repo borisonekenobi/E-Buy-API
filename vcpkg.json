@@ -1,0 +1,18 @@
+{
+  "name" : "e-buy-api",
+  "version-string" : "1.0.0",
+  "builtin-baseline" : "acd5bba5aac8b6573b5f6f463dc0341ac0ee6fa4",
+  "dependencies" : [ {
+    "name" : "boost-asio",
+    "version>=" : "1.87.0#1"
+  }, {
+    "name" : "boost-beast",
+    "version>=" : "1.87.0"
+  }, {
+    "name" : "boost-config",
+    "version>=" : "1.87.0"
+  }, {
+    "name" : "nlohmann-json",
+    "version>=" : "3.11.3#1"
+  } ]
+}
