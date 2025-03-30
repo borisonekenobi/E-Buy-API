@@ -9,9 +9,6 @@
     "name" : "boost-beast",
     "version>=" : "1.87.0"
   }, {
-    "name" : "boost-config",
-    "version>=" : "1.87.0"
-  }, {
     "name" : "nlohmann-json",
     "version>=" : "3.11.3#1"
   } ]
