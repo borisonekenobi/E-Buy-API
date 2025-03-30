@@ -2,6 +2,7 @@
 #include <nlohmann/json.hpp>
 
 #include "test.h"
+#include "../database/client.h"
 
 namespace http = boost::beast::http;
 
@@ -14,8 +15,10 @@ namespace controllers
 	{
 		nlohmann::json json_response;
 
-		json_response.emplace("message", "Hello, World!");
-		json_response.emplace("test", "This is a test");
+		const auto countries = database::client::query("SELECT country FROM cities GROUP BY country;");
+		json_response["countries"] = nlohmann::json::array();
+		for (const auto& country : countries)
+			json_response["countries"].push_back(country[0]);
 
 		res.body() = json_response.dump();
 		res.prepare_payload();
