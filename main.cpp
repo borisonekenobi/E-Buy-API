@@ -5,7 +5,6 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
-#include <nlohmann/json.hpp>
 
 #include "routers/api.h"
 
@@ -52,6 +51,7 @@ private:
 				http::response<http::string_body> res{http::status::ok, req_.version()};
 				res.set(http::field::server, "Beast");
 				res.set(http::field::content_type, "application/json");
+				res.set(http::field::access_control_allow_origin, "*");
 				res.keep_alive(req_.keep_alive());
 
 				do_write(handle_request(req_, res));
@@ -75,7 +75,7 @@ class Listener : public enable_shared_from_this<Listener>
 	tcp::acceptor acceptor_;
 
 public:
-	Listener(net::io_context& ioc, tcp::endpoint endpoint) : ioc_(ioc), acceptor_(make_strand(ioc))
+	Listener(net::io_context& ioc, const tcp::endpoint& endpoint) : ioc_(ioc), acceptor_(make_strand(ioc))
 	{
 		beast::error_code ec;
 
