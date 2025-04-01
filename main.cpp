@@ -6,6 +6,7 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 
+#include "authentication-functions.h"
 #include "routers/api.h"
 
 using namespace std;
@@ -133,8 +134,10 @@ int main()
 {
 	try
 	{
+		AuthenticationFunctions::init();
+
 		auto const address = net::ip::make_address("0.0.0.0");
-		unsigned short port = 3000;
+		constexpr unsigned short port = 3000;
 
 		net::io_context ioc{1};
 

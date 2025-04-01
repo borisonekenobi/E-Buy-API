@@ -9,6 +9,9 @@
     "name" : "boost-beast",
     "version>=" : "1.87.0"
   }, {
+    "name" : "jwt-cpp",
+    "version>=" : "0.7.0#1"
+  }, {
     "name" : "nlohmann-json",
     "version>=" : "3.11.3#1"
   }, {

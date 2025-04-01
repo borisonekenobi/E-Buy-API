@@ -41,3 +41,6 @@
 /x64/
 /E-Buy-API/
 /database/database.db
+
+# Environment variables
+.env
