@@ -22,35 +22,49 @@ namespace http = beast::http;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
-static void print_status(const string& method, const string& target, const unsigned int status_code)
+static void print_status(http::request<http::string_body> const& req,
+                         http::response<http::string_body>& res,
+                         const long long elapsed)
 {
+	const auto method = req.method_string();
+	const auto target = req.target();
+	const auto status_code = res.result_int();
+	const auto payload_size = res.body().size() == 0 ? "-" : to_string(res.body().size());
+
+	cout << method << " " << target << " ";
+
 	switch (status_code / 100)
 	{
 	case 1:
-		cout << method << " " << target << " " << WHITE_FOREGROUND(status_code) << endl;
+		cout << WHITE_FOREGROUND(status_code);
 		break;
 	case 2:
-		cout << method << " " << target << " " << GREEN_FOREGROUND(status_code) << endl;
+		cout << GREEN_FOREGROUND(status_code);
 		break;
 	case 3:
-		cout << method << " " << target << " " << CYAN_FOREGROUND(status_code) << endl;
+		cout << CYAN_FOREGROUND(status_code);
 		break;
 	case 4:
-		cout << method << " " << target << " " << YELLOW_FOREGROUND(status_code) << endl;
+		cout << YELLOW_FOREGROUND(status_code);
 		break;
 	case 5:
 	default:
-		cout << method << " " << target << " " << RED_FOREGROUND(status_code) << endl;
+		cout << RED_FOREGROUND(status_code);
 		break;
 	}
+
+	cout << " " << elapsed << " ms - " << payload_size << endl;
 }
 
 static http::response<http::string_body> handle_request(http::request<http::string_body> const& req,
                                                         http::response<http::string_body>& res)
 {
+	const auto now = chrono::system_clock::now();
+
 	if (req.target().starts_with("/api")) res = routers::api::handle_request(req, res);
 
-	print_status(http::to_string(req.method()), req.target(), res.result_int());
+	const auto elapsed = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - now).count();
+	print_status(req, res, elapsed);
 	return res;
 }
 

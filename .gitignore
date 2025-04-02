@@ -38,6 +38,7 @@
 
 # Build files
 /cmake-build-debug/
+/cmake-build-release/
 /x64/
 /E-Buy-API/
 /database/database.db
