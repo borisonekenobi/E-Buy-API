@@ -1,12 +1,12 @@
 #include <boost/beast/http.hpp>
 #include <nlohmann/json.hpp>
 
-#include "../authentication-functions.h"
 #include "test.h"
-
+#include "../authentication-functions.h"
 #include "../database/client.h"
 
 namespace http = boost::beast::http;
+using db = database::client;
 
 using namespace std;
 
@@ -33,18 +33,18 @@ namespace controllers
 			return res;
 		}
 
-		const auto data = AuthenticationFunctions::verifyToken(auth_header.substr(space_pos + 1));
+		const auto data = verifyToken(auth_header.substr(space_pos + 1));
 
 		nlohmann::json json_response;
 
-		const auto countries = database::client::query("SELECT country FROM cities GROUP BY country;");
+		const auto countries = db::query("SELECT country FROM cities GROUP BY country;", {});
 		json_response["countries"] = nlohmann::json::array();
 		for (const auto& country : countries)
 			json_response["countries"].push_back(country[0]);
 		json_response["your_auth_data"] = data;
 		auto new_token_data = nlohmann::json();
 		new_token_data["name"] = "test";
-		json_response["new_token"] = AuthenticationFunctions::generateAccessToken(new_token_data);
+		json_response["new_token"] = generateAccessToken(new_token_data);
 
 		res.body() = json_response.dump();
 		res.prepare_payload();

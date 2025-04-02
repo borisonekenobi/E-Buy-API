@@ -9,6 +9,12 @@
 #include "authentication-functions.h"
 #include "routers/api.h"
 
+#define WHITE_FOREGROUND(x) "\033[37m" << (x) << "\033[0m"
+#define GREEN_FOREGROUND(x) "\033[32m" << (x) << "\033[0m"
+#define CYAN_FOREGROUND(x) "\033[36m" << (x) << "\033[0m"
+#define YELLOW_FOREGROUND(x) "\033[33m" << (x) << "\033[0m"
+#define RED_FOREGROUND(x) "\033[31m" << (x) << "\033[0m"
+
 using namespace std;
 
 namespace beast = boost::beast;
@@ -16,14 +22,61 @@ namespace http = beast::http;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
+static void print_status(http::request<http::string_body> const& req,
+                         http::response<http::string_body>& res,
+                         const long long elapsed)
+{
+	const auto method = req.method_string();
+	const auto target = req.target();
+	const auto status_code = res.result_int();
+	const auto payload_size = res.body().empty() ? "-" : to_string(res.body().size());
+
+	cout << method << " " << target << " ";
+
+	switch (status_code / 100)
+	{
+	case 1:
+		cout << WHITE_FOREGROUND(status_code);
+		break;
+	case 2:
+		cout << GREEN_FOREGROUND(status_code);
+		break;
+	case 3:
+		cout << CYAN_FOREGROUND(status_code);
+		break;
+	case 4:
+		cout << YELLOW_FOREGROUND(status_code);
+		break;
+	case 5:
+	default:
+		cout << RED_FOREGROUND(status_code);
+		break;
+	}
+
+	cout << " " << elapsed << " ms - " << payload_size << endl;
+}
+
 static http::response<http::string_body> handle_request(http::request<http::string_body> const& req,
                                                         http::response<http::string_body>& res)
 {
-	cout << http::to_string(req.method()) << " " << req.target() << endl;
+	try
+	{
+		const auto now = chrono::system_clock::now();
 
-	if (req.target().starts_with("/api")) return routers::api::handle_request(req, res);
+		if (req.target().starts_with("/api")) res = routers::api::handle_request(req, res);
 
-	return http::response<http::string_body>{http::status::not_found, req.version()};
+		const auto elapsed = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - now).count();
+		print_status(req, res, elapsed);
+		return res;
+	}
+	catch (const exception& e)
+	{
+		cerr << "Error: " << e.what() << endl;
+		res.result(http::status::internal_server_error);
+		res.body() = "Internal Server Error";
+		res.prepare_payload();
+		return res;
+	}
 }
 
 class Session : public enable_shared_from_this<Session>
@@ -134,7 +187,7 @@ int main()
 {
 	try
 	{
-		AuthenticationFunctions::init();
+		initialize_auth();
 
 		auto const address = net::ip::make_address("0.0.0.0");
 		constexpr unsigned short port = 3000;

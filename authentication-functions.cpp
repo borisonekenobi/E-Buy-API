@@ -5,7 +5,7 @@
 map<string, string> env_map;
 
 // Initializes the authentication functions by loading environment variables from a .env file.
-void AuthenticationFunctions::init()
+void initialize_auth()
 {
 	ifstream env_file(".env");
 
@@ -29,13 +29,13 @@ void AuthenticationFunctions::init()
 }
 
 // Hashes the given data with the given salt.
-tuple<string, string> AuthenticationFunctions::hash(const string& data, const string& salt = "")
+tuple<string, string> hash(const string& data, const string& salt = "")
 {
 	return tuple(data, salt);
 }
 
 // Generates an access token for the given data.
-string AuthenticationFunctions::generateAccessToken(const nlohmann::basic_json<>& data)
+string generateAccessToken(const nlohmann::basic_json<>& data)
 {
 	cout << data.dump() << endl;
 
@@ -48,7 +48,7 @@ string AuthenticationFunctions::generateAccessToken(const nlohmann::basic_json<>
 }
 
 // Verifies the given token.
-nlohmann::basic_json<> AuthenticationFunctions::verifyToken(const string& token)
+nlohmann::basic_json<> verifyToken(const string& token)
 {
 	const auto decoded_token = jwt::decode(token);
 	const auto verifier = jwt::verify()

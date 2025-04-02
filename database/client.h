@@ -6,13 +6,7 @@
 
 using namespace std;
 
-namespace database
+namespace database::client
 {
-    class client
-    {
-        static vector<vector<string>> executeQuery(sqlite3* db, const string& query);
-
-    public:
-        static vector<vector<string>> query(const string& query);
-    };
+    vector<vector<string>> query(const string& query, const vector<string>& params);
 }
