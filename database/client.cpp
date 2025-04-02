@@ -1,3 +1,4 @@
+#include <format>
 #include <iostream>
 
 #include "client.h"
@@ -31,15 +32,33 @@ namespace database
         return results;
     }
 
-    vector<vector<string>> client::query(const string& query)
+    string client::prepare_query(const string& query, const vector<string>& params)
     {
+        string prepared_query = query;
+        for (int i = 0; i < params.size(); i++)
+        {
+            const string& param = params[i];
+            if (const size_t pos = prepared_query.find(format("${}", i + 1)); pos != string::npos)
+            {
+                prepared_query.replace(pos, 2, "'" + param + "'");
+            }
+        }
+        return prepared_query;
+    }
+
+    // Executes a query on the database and returns the results.
+    // WARNING: This function is not safe from SQL injection attacks.
+    vector<vector<string>> client::query(const string& query, const vector<string>& params)
+    {
+        const string prepared_query = prepare_query(query, params);
+
         sqlite3* db;
         if (sqlite3_open("database.db", &db))
         {
             cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
             exit(EXIT_FAILURE);
         }
-        const vector<vector<string>> query_results = executeQuery(db, query);
+        const vector<vector<string>> query_results = executeQuery(db, prepared_query);
         sqlite3_close(db);
 
         return query_results;
