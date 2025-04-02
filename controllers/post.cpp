@@ -9,7 +9,8 @@ using namespace std;
 
 namespace controllers::post {
     http::response<http::string_body> create_post(http::request<http::string_body> const &req,
-                                                 http::response<http::string_body> &res) {
+                                                  http::response<http::string_body> &res)
+    {
         nlohmann::json request_body = nlohmann::json::parse(req.body());
         const string user_id = request_body["user_id"];
         const string title = request_body["title"];
@@ -23,10 +24,11 @@ namespace controllers::post {
         // Insert new post into the posts table
         const auto result = database::client::query(
             "INSERT INTO posts (id, user_id, title, description, price, type, status) VALUES ($1, $2, $3, $4, $5, $6)",
-            {uuid, user_id,title, description, price, type, status}
+            {uuid, user_id, title, description, price, type, status}
         );
 
-        if (result.empty()) {
+        if (result.empty())
+            {
             res.result(http::status::internal_server_error);
             res.body() = R"({"message": "Internal Server Error"})";
             res.prepare_payload();
@@ -43,27 +45,17 @@ namespace controllers::post {
         return res;
     }
 
-
-
     http::response<http::string_body> buy_post(http::request<http::string_body> const &req,
-                                               http::response<http::string_body> &res) {
+                                               http::response<http::string_body> &res)
+    {
         nlohmann::json request_body = nlohmann::json::parse(req.body());
         const string user_id = request_body["id"];
         const string post_id = request_body["id"];
 
-        // Begin transaction
-        if (!database::client::query("BEGIN TRANSACTION;", {}).empty()) {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
-        }
-
         // Retrieve user balance
-        // TODO: get id from JWT
         const auto user_balance_result = database::client::query("SELECT balance FROM users WHERE id = $1;", {user_id});
-        if (user_balance_result.empty()) {
-            database::client::query("ROLLBACK;", {});
+        if (user_balance_result.empty())
+            {
             res.result(http::status::internal_server_error);
             res.body() = R"({"message": "Internal Server Error"})";
             res.prepare_payload();
@@ -72,10 +64,9 @@ namespace controllers::post {
         double balance = stod(user_balance_result[0][0]);
 
         // Retrieve post price
-        //
         const auto post_price_result = database::client::query("SELECT price FROM posts WHERE id = $1;", {post_id});
-        if (post_price_result.empty()) {
-            database::client::query("ROLLBACK;", {});
+        if (post_price_result.empty())
+            {
             res.result(http::status::internal_server_error);
             res.body() = R"({"message": "Internal Server Error"})";
             res.prepare_payload();
@@ -85,43 +76,46 @@ namespace controllers::post {
 
         // Update user balance
         balance -= price;
-        if (database::client::query("UPDATE users SET balance = $1 WHERE id = $2;", {to_string(balance), user_id}).
-            empty()) {
-            database::client::query("ROLLBACK;", {});
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
+
+        if (balance < 0)
+            {
+            res.result(http::status::bad_request);
+            res.body() = R"({"message": "Insufficient balance"})";
+            res.prepare_payload();
+            return res;
+        } else {
+            if (database::client::query("UPDATE users SET balance = $1 WHERE id = $2;", {to_string(balance), user_id}).
+                empty())
+                {
+                res.result(http::status::internal_server_error);
+                res.body() = R"({"message": "Internal Server Error"})";
+                res.prepare_payload();
+                return res;
+            }
+
+            // Update post status
+            if (database::client::query("UPDATE posts SET status = 'sold' WHERE id = $1;", {post_id}).empty())
+                {
+                res.result(http::status::internal_server_error);
+                res.body() = R"({"message": "Internal Server Error"})";
+                res.prepare_payload();
+                return res;
+            }
+
+            res.result(http::status::created);
+            res.body() = R"({"message": "Post purchased successfully"})";
             res.prepare_payload();
             return res;
         }
-
-        // Update post status
-        if (database::client::query("UPDATE posts SET status = 'sold' WHERE id = $1;", {post_id}).empty()) {
-            database::client::query("ROLLBACK;", {});
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
-        }
-
-        // Commit transaction
-        if (!database::client::query("COMMIT;", {}).empty()) {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
-        }
-
-        res.result(http::status::created);
-        res.body() = R"({"message": "Post purchased successfully"})";
-        res.prepare_payload();
-        return res;
     }
 
     http::response<http::string_body> get_post(http::request<http::string_body> const &req,
-                                               http::response<http::string_body> &res) {
+                                               http::response<http::string_body> &res)
+    {
         const string post_id = req.target().substr(11);
 
-        if (post_id.empty()) {
+        if (post_id.empty())
+            {
             res.result(http::status::bad_request);
             res.body() = nlohmann::json::parse(R"({"message": "Post ID is missing"})").dump();
             res.prepare_payload();
@@ -129,7 +123,8 @@ namespace controllers::post {
         }
 
         boost::uuids::uuid uuid;
-        if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4) {
+        if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4)
+            {
             res.result(http::status::bad_request);
             res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
             res.prepare_payload();
@@ -137,7 +132,8 @@ namespace controllers::post {
         }
 
         const auto post = database::client::query("SELECT * FROM posts WHERE id = $1;", {post_id});
-        if (post.empty()) {
+        if (post.empty())
+            {
             res.result(http::status::not_found);
             res.body() = nlohmann::json::parse(R"({"message": "Post not found"})").dump();
             res.prepare_payload();
@@ -145,7 +141,8 @@ namespace controllers::post {
         }
 
         nlohmann::json response;
-        response["post"] = {
+        response["post"] =
+            {
             {"id", post[0][0]},
             {"user_id", post[0][1]},
             {"title", post[0][2]},
@@ -157,20 +154,24 @@ namespace controllers::post {
 
         const string post_type = response["post"]["type"];
         vector<vector<string> > post_data;
-        if (post_type == "sale") {
+        if (post_type == "sale")
+            {
             post_data = database::client::query("SELECT * FROM transactions WHERE post_id = $1;", {post_id});
             response["post"]["transactions"] = nlohmann::json::array();
-            for (const auto &transaction: post_data) {
+            for (const auto &transaction: post_data)
+                {
                 response["post"]["transactions"].push_back({
                     {"id", transaction[0]},
                     {"user_id", transaction[1]},
                     {"price", transaction[3]},
                 });
             }
-        } else {
+        } else
+            {
             post_data = database::client::query("SELECT * FROM bids WHERE post_id = $1;", {post_id});
             response["post"]["bids"] = nlohmann::json::array();
-            for (const auto &bid: post_data) {
+            for (const auto &bid: post_data)
+                {
                 response["post"]["bids"].push_back({
                     {"id", bid[0]},
                     {"user_id", bid[1]},
