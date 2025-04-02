@@ -4,7 +4,7 @@
 
 using namespace std;
 
-static bool is_valid_uuid(const string& str, boost::uuids::uuid& result)
+bool is_valid_uuid(const string& str, boost::uuids::uuid& result)
 {
     try
     {

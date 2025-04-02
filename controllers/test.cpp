@@ -33,7 +33,7 @@ namespace controllers
 			return res;
 		}
 
-		const auto data = AuthenticationFunctions::verifyToken(auth_header.substr(space_pos + 1));
+		const auto data = verifyToken(auth_header.substr(space_pos + 1));
 
 		nlohmann::json json_response;
 
@@ -44,7 +44,7 @@ namespace controllers
 		json_response["your_auth_data"] = data;
 		auto new_token_data = nlohmann::json();
 		new_token_data["name"] = "test";
-		json_response["new_token"] = AuthenticationFunctions::generateAccessToken(new_token_data);
+		json_response["new_token"] = generateAccessToken(new_token_data);
 
 		res.body() = json_response.dump();
 		res.prepare_payload();
