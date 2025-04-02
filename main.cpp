@@ -9,6 +9,12 @@
 #include "authentication-functions.h"
 #include "routers/api.h"
 
+#define WHITE_FOREGROUND(x) "\033[37m" << x << "\033[0m"
+#define GREEN_FOREGROUND(x) "\033[32m" << x << "\033[0m"
+#define CYAN_FOREGROUND(x) "\033[36m" << x << "\033[0m"
+#define YELLOW_FOREGROUND(x) "\033[33m" << x << "\033[0m"
+#define RED_FOREGROUND(x) "\033[31m" << x << "\033[0m"
+
 using namespace std;
 
 namespace beast = boost::beast;
@@ -16,14 +22,36 @@ namespace http = beast::http;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
+static void print_status(const string& method, const string& target, const unsigned int status_code)
+{
+	switch (status_code / 100)
+	{
+	case 1:
+		cout << method << " " << target << " " << WHITE_FOREGROUND(status_code) << endl;
+		break;
+	case 2:
+		cout << method << " " << target << " " << GREEN_FOREGROUND(status_code) << endl;
+		break;
+	case 3:
+		cout << method << " " << target << " " << CYAN_FOREGROUND(status_code) << endl;
+		break;
+	case 4:
+		cout << method << " " << target << " " << YELLOW_FOREGROUND(status_code) << endl;
+		break;
+	case 5:
+	default:
+		cout << method << " " << target << " " << RED_FOREGROUND(status_code) << endl;
+		break;
+	}
+}
+
 static http::response<http::string_body> handle_request(http::request<http::string_body> const& req,
                                                         http::response<http::string_body>& res)
 {
-	cout << http::to_string(req.method()) << " " << req.target() << endl;
+	if (req.target().starts_with("/api")) res = routers::api::handle_request(req, res);
 
-	if (req.target().starts_with("/api")) return routers::api::handle_request(req, res);
-
-	return http::response<http::string_body>{http::status::not_found, req.version()};
+	print_status(http::to_string(req.method()), req.target(), res.result_int());
+	return res;
 }
 
 class Session : public enable_shared_from_this<Session>
