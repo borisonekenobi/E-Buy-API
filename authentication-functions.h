@@ -6,9 +6,11 @@
 
 using namespace std;
 
-constexpr auto jwtExpireTime = chrono::seconds(60 * 60 * 1000); // 1 hour
+constexpr auto jwtExpireTime = chrono::hours(1);
+constexpr auto jwtRefreshExpireTime = chrono::days(30);
 
 void initialize_auth();
-tuple<string, string> hash(const string& data, const string& salt);
-string generateAccessToken(const nlohmann::basic_json<>& data);
-nlohmann::basic_json<> verifyToken(const string& token);
+string hash(const string& data, string& salt);
+string generate_access_token(const nlohmann::basic_json<>& data);
+string generate_refresh_token(const nlohmann::basic_json<>& data);
+nlohmann::basic_json<> verify_token(const string& token);

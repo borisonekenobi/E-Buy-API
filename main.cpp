@@ -73,8 +73,9 @@ static http::response<http::string_body> handle_request(http::request<http::stri
 	{
 		cerr << "Error: " << e.what() << endl;
 		res.result(http::status::internal_server_error);
-		res.body() = "Internal Server Error";
+		res.body() = R"({"message": "Internal Server Error"})";
 		res.prepare_payload();
+		print_status(req, res, 0);
 		return res;
 	}
 }

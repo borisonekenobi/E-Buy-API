@@ -25,7 +25,7 @@
 {
   "name": "John Doe",
   "username": "johndoe",
-  "password": "password123"
+  "password": "password"
 }
 ```
 
@@ -84,13 +84,13 @@
 ```json
 {
   "user": {
-    "id": "50f1e079-1e11-49e4-97bc-6ca41ce729e0",
+    "id": "0a2e62ee-b04d-43fd-a633-0fa0ed93446a",
     "name": "John Doe",
     "username": "johndoe",
     "type": "standard"
   },
-  "access": "ey",
-  "refresh": "ey"
+  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjoie1wiaWRcIjpcIjBhMmU2MmVlLWIwNGQtNDNmZC1hNjMzLTBmYTBlZDkzNDQ2YVwiLFwibmFtZVwiOlwiSm9obiBEb2VcIixcInN0YXR1c1wiOlwiYWN0aXZlXCIsXCJ0eXBlXCI6XCJzdGFuZGFyZFwiLFwidXNlcm5hbWVcIjpcImpvaG5kb2VcIn0iLCJleHAiOjE3NDM2MzAzNzcsImlzcyI6ImF1dGgwIn0.tUzuYSsH_nw5bH9Z8T6xDrOqY9NpTDIEUI70KOuUsms",
+  "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjoie1wiaWRcIjpcIjBhMmU2MmVlLWIwNGQtNDNmZC1hNjMzLTBmYTBlZDkzNDQ2YVwiLFwibmFtZVwiOlwiSm9obiBEb2VcIixcInN0YXR1c1wiOlwiYWN0aXZlXCIsXCJ0eXBlXCI6XCJzdGFuZGFyZFwiLFwidXNlcm5hbWVcIjpcImpvaG5kb2VcIn0iLCJleHAiOjE3NDYyMTg3NzcsImlzcyI6ImF1dGgwIn0.bilvcZgMHani1-gfuyCnXuw-2iAJDzSm7MZlQxc0Ht0"
 }
 ```
 
@@ -155,7 +155,7 @@
 ```json
 [
   {
-    "id": "",,
+    "id": "",
     "user_id": "",
     "title": "My First Post",
     "description": "This is the content of my first post.",
