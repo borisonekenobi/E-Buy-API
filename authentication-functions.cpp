@@ -5,7 +5,7 @@
 map<string, string> env_map;
 
 // Initializes the authentication functions by loading environment variables from a .env file.
-void init()
+void initialize_auth()
 {
 	ifstream env_file(".env");
 

@@ -134,7 +134,7 @@ int main()
 {
 	try
 	{
-		init();
+		initialize_auth();
 
 		auto const address = net::ip::make_address("0.0.0.0");
 		constexpr unsigned short port = 3000;
