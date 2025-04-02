@@ -60,8 +60,6 @@ namespace controllers::authentication
     http::response<http::string_body> change_password(http::request<http::string_body> const& req,
                                                       http::response<http::string_body>& res)
     {
-        verifyToken()
-
         res.result(http::status::not_implemented);
         nlohmann::json response;
         response["message"] = "Not implemented";
@@ -127,9 +125,30 @@ namespace controllers::authentication
     http::response<http::string_body> renew_tokens(http::request<http::string_body> const& req,
                                                    http::response<http::string_body>& res)
     {
-        res.result(http::status::not_implemented);
+        const auto auth_header = req[http::field::authorization];
+        if (auth_header.empty())
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Authorization header is missing."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const auto space_pos = auth_header.find(' ');
+        if (space_pos == string::npos)
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid authorization header format."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const auto data = verify_token(auth_header.substr(space_pos + 1));
+
+        res.result(http::status::ok);
         nlohmann::json response;
-        response["message"] = "Not implemented";
+        response["access"] = generate_access_token(data);
+        response["refresh"] = generate_refresh_token(data);
         res.body() = response.dump();
         res.prepare_payload();
         return res;
