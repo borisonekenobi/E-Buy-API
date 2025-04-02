@@ -128,6 +128,77 @@ http::response<http::string_body> buy_post(http::request<http::string_body> cons
     }
 }
 
+http::response<http::string_body> bid_post(http::request<http::string_body> const &req,
+                                           http::response<http::string_body> &res)
+{
+    nlohmann::json request_body = nlohmann::json::parse(req.body());
+    const string user_id = request_body["user_id"];
+    const string post_id = request_body["post_id"];
+    const int new_price = request_body["price"];
+
+    // Retrieve post status and current price
+    const auto post_result = database::client::query("SELECT status, price FROM posts WHERE id = $1;", {post_id});
+    if (post_result.empty())
+    {
+        res.result(http::status::internal_server_error);
+        res.body() = R"({"message": "Internal Server Error"})";
+        res.prepare_payload();
+        return res;
+    }
+    string status = post_result[0][0];
+    double current_price = stod(post_result[0][1]);
+
+    if (status == "inactive" || status == "sold")
+    {
+        res.result(http::status::bad_request);
+        res.body() = R"({"message": "Post is not available for bidding"})";
+        res.prepare_payload();
+        return res;
+    }
+
+    if (new_price <= current_price)
+    {
+        res.result(http::status::bad_request);
+        res.body() = R"({"message": "Bid price must be larger than the current price"})";
+        res.prepare_payload();
+        return res;
+    }
+
+    const auto uuid = to_string(gen_uuid());
+
+    // Record the transaction
+    const auto transaction_result = database::client::query(
+        "INSERT INTO transactions (id, user_id, post_id, price) VALUES ($1, $2, $3, $4) RETURNING id;",
+        {uuid, user_id, post_id, to_string(new_price)}
+    );
+
+    if (transaction_result.empty())
+    {
+        res.result(http::status::internal_server_error);
+        res.body() = R"({"message": "Internal Server Error"})";
+        res.prepare_payload();
+        return res;
+    }
+
+    // Update post with the current bidded price
+    if (database::client::query("UPDATE posts SET price = $1 WHERE id = $2;", {to_string(new_price), post_id}).empty())
+    {
+        res.result(http::status::internal_server_error);
+        res.body() = R"({"message": "Internal Server Error"})";
+        res.prepare_payload();
+        return res;
+    }
+
+    nlohmann::json response;
+    response["message"] = "Bid placed successfully";
+    response["transaction_id"] = transaction_result[0][0];
+
+    res.result(http::status::created);
+    res.body() = response.dump();
+    res.prepare_payload();
+    return res;
+}
+
     http::response<http::string_body> get_post(http::request<http::string_body> const &req,
                                                http::response<http::string_body> &res)
     {
