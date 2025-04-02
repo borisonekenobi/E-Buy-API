@@ -10,6 +10,17 @@ using db = database::client;
 
 namespace controllers
 {
+    http::response<http::string_body> post::create_post(http::request<http::string_body> const& req,
+                                                        http::response<http::string_body>& res)
+    {
+        res.result(http::status::not_implemented);
+        nlohmann::json response;
+        response["message"] = "Not implemented";
+        res.body() = response.dump();
+        res.prepare_payload();
+        return res;
+    }
+
     http::response<http::string_body> post::get_post(http::request<http::string_body> const& req,
                                                      http::response<http::string_body>& res)
     {
@@ -82,17 +93,6 @@ namespace controllers
         }
 
         res.result(http::status::ok);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
-    }
-
-    http::response<http::string_body> post::create_post(http::request<http::string_body> const& req,
-                                                        http::response<http::string_body>& res)
-    {
-        res.result(http::status::not_implemented);
-        nlohmann::json response;
-        response["message"] = "Not implemented";
         res.body() = response.dump();
         res.prepare_payload();
         return res;
