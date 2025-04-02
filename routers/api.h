@@ -4,12 +4,8 @@
 
 namespace http = boost::beast::http;
 
-namespace routers
+namespace routers::api
 {
-	class api
-	{
-	public:
-		static http::response<http::string_body> handle_request(http::request<http::string_body> const& req,
-		                                                        http::response<http::string_body>& res);
-	};
+	http::response<http::string_body> handle_request(http::request<http::string_body> const& req,
+	                                                 http::response<http::string_body>& res);
 }

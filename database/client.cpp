@@ -5,9 +5,9 @@
 
 using namespace std;
 
-namespace database
+namespace database::client
 {
-    vector<vector<string>> client::executeQuery(sqlite3* db, const string& query)
+    vector<vector<string>> executeQuery(sqlite3* db, const string& query)
     {
         char* errMsg = nullptr;
         vector<vector<string>> results;
@@ -32,7 +32,7 @@ namespace database
         return results;
     }
 
-    string client::prepare_query(const string& query, const vector<string>& params)
+    string prepare_query(const string& query, const vector<string>& params)
     {
         string prepared_query = query;
         for (int i = 0; i < params.size(); i++)
@@ -48,7 +48,7 @@ namespace database
 
     // Executes a query on the database and returns the results.
     // WARNING: This function is not safe from SQL injection attacks.
-    vector<vector<string>> client::query(const string& query, const vector<string>& params)
+    vector<vector<string>> query(const string& query, const vector<string>& params)
     {
         const string prepared_query = prepare_query(query, params);
 

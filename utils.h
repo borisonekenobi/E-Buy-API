@@ -7,10 +7,5 @@
 
 using namespace std;
 
-#ifndef UTILS_H
-#define UTILS_H
-
 inline boost::uuids::random_generator gen_uuid;
 bool is_valid_uuid(const string& str, boost::uuids::uuid& result);
-
-#endif //UTILS_H

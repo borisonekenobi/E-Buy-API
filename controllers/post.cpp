@@ -6,12 +6,11 @@
 #include "../database/client.h"
 
 using namespace std;
-using db = database::client;
 
-namespace controllers
+namespace controllers::post
 {
-    http::response<http::string_body> post::create_post(http::request<http::string_body> const& req,
-                                                        http::response<http::string_body>& res)
+    http::response<http::string_body> create_post(http::request<http::string_body> const& req,
+                                                  http::response<http::string_body>& res)
     {
         res.result(http::status::not_implemented);
         nlohmann::json response;
@@ -21,8 +20,8 @@ namespace controllers
         return res;
     }
 
-    http::response<http::string_body> post::get_post(http::request<http::string_body> const& req,
-                                                     http::response<http::string_body>& res)
+    http::response<http::string_body> get_post(http::request<http::string_body> const& req,
+                                               http::response<http::string_body>& res)
     {
         const string post_id = req.target().substr(11);
 
@@ -43,7 +42,7 @@ namespace controllers
             return res;
         }
 
-        const auto post = db::query("SELECT * FROM posts WHERE id = $1;", {post_id});
+        const auto post = database::client::query("SELECT * FROM posts WHERE id = $1;", {post_id});
         if (post.empty())
         {
             res.result(http::status::not_found);
@@ -67,7 +66,7 @@ namespace controllers
         vector<vector<string>> post_data;
         if (post_type == "sale")
         {
-            post_data = db::query("SELECT * FROM transactions WHERE post_id = $1;", {post_id});
+            post_data = database::client::query("SELECT * FROM transactions WHERE post_id = $1;", {post_id});
             response["post"]["transactions"] = nlohmann::json::array();
             for (const auto& transaction : post_data)
             {
@@ -80,7 +79,7 @@ namespace controllers
         }
         else
         {
-            post_data = db::query("SELECT * FROM bids WHERE post_id = $1;", {post_id});
+            post_data = database::client::query("SELECT * FROM bids WHERE post_id = $1;", {post_id});
             response["post"]["bids"] = nlohmann::json::array();
             for (const auto& bid : post_data)
             {
