@@ -45,69 +45,88 @@ namespace controllers::post {
         return res;
     }
 
-    http::response<http::string_body> buy_post(http::request<http::string_body> const &req,
-                                               http::response<http::string_body> &res)
+http::response<http::string_body> buy_post(http::request<http::string_body> const &req,
+                                           http::response<http::string_body> &res)
+{
+    nlohmann::json request_body = nlohmann::json::parse(req.body());
+    const string user_id = request_body["user_id"];
+    const string post_id = request_body["post_id"];
+
+    // Retrieve post status
+    const auto post_status_result = database::client::query("SELECT status FROM posts WHERE id = $1;", {post_id});
+    if (post_status_result.empty())
     {
-        nlohmann::json request_body = nlohmann::json::parse(req.body());
-        const string user_id = request_body["id"];
-        const string post_id = request_body["id"];
-
-        // Retrieve user balance
-        const auto user_balance_result = database::client::query("SELECT balance FROM users WHERE id = $1;", {user_id});
-        if (user_balance_result.empty())
-            {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
-        }
-        double balance = stod(user_balance_result[0][0]);
-
-        // Retrieve post price
-        const auto post_price_result = database::client::query("SELECT price FROM posts WHERE id = $1;", {post_id});
-        if (post_price_result.empty())
-            {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
-        }
-        double price = stod(post_price_result[0][0]);
-
-        // Update user balance
-        balance -= price;
-
-        if (balance < 0)
-            {
-            res.result(http::status::bad_request);
-            res.body() = R"({"message": "Insufficient balance"})";
-            res.prepare_payload();
-            return res;
-        } else {
-            if (database::client::query("UPDATE users SET balance = $1 WHERE id = $2;", {to_string(balance), user_id}).
-                empty())
-                {
-                res.result(http::status::internal_server_error);
-                res.body() = R"({"message": "Internal Server Error"})";
-                res.prepare_payload();
-                return res;
-            }
-
-            // Update post status
-            if (database::client::query("UPDATE posts SET status = 'sold' WHERE id = $1;", {post_id}).empty())
-                {
-                res.result(http::status::internal_server_error);
-                res.body() = R"({"message": "Internal Server Error"})";
-                res.prepare_payload();
-                return res;
-            }
-
-            res.result(http::status::created);
-            res.body() = R"({"message": "Post purchased successfully"})";
-            res.prepare_payload();
-            return res;
-        }
+        res.result(http::status::internal_server_error);
+        res.body() = R"({"message": "Internal Server Error"})";
+        res.prepare_payload();
+        return res;
     }
+    string status = post_status_result[0][0];
+    if (status == "inactive" || status == "sold")
+    {
+        res.result(http::status::bad_request);
+        res.body() = R"({"message": "Post is not available for purchase"})";
+        res.prepare_payload();
+        return res;
+    }
+
+    // Retrieve user balance
+    const auto user_balance_result = database::client::query("SELECT balance FROM users WHERE id = $1;", {user_id});
+    if (user_balance_result.empty())
+    {
+        res.result(http::status::internal_server_error);
+        res.body() = R"({"message": "Internal Server Error"})";
+        res.prepare_payload();
+        return res;
+    }
+    int balance = stod(user_balance_result[0][0]);
+
+    // Retrieve post price
+    const auto post_price_result = database::client::query("SELECT price FROM posts WHERE id = $1;", {post_id});
+    if (post_price_result.empty())
+    {
+        res.result(http::status::internal_server_error);
+        res.body() = R"({"message": "Internal Server Error"})";
+        res.prepare_payload();
+        return res;
+    }
+    int price = stod(post_price_result[0][0]);
+
+    // Update user balance
+    balance -= price;
+
+    if (balance < 0)
+    {
+        res.result(http::status::bad_request);
+        res.body() = R"({"message": "Insufficient balance"})";
+        res.prepare_payload();
+        return res;
+    }
+    else
+    {
+        if (database::client::query("UPDATE users SET balance = $1 WHERE id = $2;", {to_string(balance), user_id}).empty())
+        {
+            res.result(http::status::internal_server_error);
+            res.body() = R"({"message": "Internal Server Error"})";
+            res.prepare_payload();
+            return res;
+        }
+
+        // Update post status
+        if (database::client::query("UPDATE posts SET status = 'sold' WHERE id = $1;", {post_id}).empty())
+        {
+            res.result(http::status::internal_server_error);
+            res.body() = R"({"message": "Internal Server Error"})";
+            res.prepare_payload();
+            return res;
+        }
+
+        res.result(http::status::created);
+        res.body() = R"({"message": "Post purchased successfully"})";
+        res.prepare_payload();
+        return res;
+    }
+}
 
     http::response<http::string_body> get_post(http::request<http::string_body> const &req,
                                                http::response<http::string_body> &res)
