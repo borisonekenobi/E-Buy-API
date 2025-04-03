@@ -59,10 +59,20 @@ namespace controllers::post
         const string type = body["type"].get<string>();
         const string status = "active";
 
-        const auto result = database::client::query(
-            "INSERT INTO posts (id, user_id, title, description, price, type, status) VALUES ($1, $2, $3, $4, $5, $6, $7);",
-            {uuid, user_id, title, description, to_string(price), type, status}
-        );
+        try
+        {
+            const auto result = database::client::query(
+                "INSERT INTO posts (id, user_id, title, description, price, type, status) VALUES ($1, $2, $3, $4, $5, $6, $7);",
+                {uuid, user_id, title, description, to_string(price), type, status}
+            );
+        }
+        catch (const std::exception& e)
+        {
+            res.result(http::status::internal_server_error);
+            res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
+            res.prepare_payload();
+            return res;
+        }
 
         nlohmann::json response;
         response["message"] = "Post created successfully";
@@ -84,10 +94,21 @@ namespace controllers::post
     http::response<http::string_body> find(http::request<http::string_body> const& req,
                                            http::response<http::string_body>& res)
     {
-        const auto posts = database::client::query(
-            "SELECT * FROM posts WHERE status = 'active' ORDER BY random() LIMIT 10;",
-            {}
-        );
+        vector<vector<string>> posts;
+        try
+        {
+            posts = database::client::query(
+                "SELECT * FROM posts WHERE status = 'active' ORDER BY random() LIMIT 10;",
+                {}
+            );
+        }
+        catch (const std::exception& e)
+        {
+            res.result(http::status::internal_server_error);
+            res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
+            res.prepare_payload();
+            return res;
+        }
 
         if (posts.empty())
         {
@@ -136,7 +157,19 @@ namespace controllers::post
             return res;
         }
 
-        const auto post = database::client::query("SELECT * FROM posts WHERE id = $1;", {to_string(uuid)})[0];
+        vector<vector<string>> post;
+        try
+        {
+            post = database::client::query("SELECT * FROM posts WHERE id = $1;", {to_string(uuid)});
+        }
+        catch (const std::exception& e)
+        {
+            res.result(http::status::internal_server_error);
+            res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
+            res.prepare_payload();
+            return res;
+        }
+
         if (post.empty())
         {
             res.result(http::status::not_found);
@@ -157,10 +190,22 @@ namespace controllers::post
 
         if (response["type"] == "sale")
         {
-            const auto transactions = database::client::query(
-                "SELECT * FROM transactions WHERE post_id = $1;",
-                {post_id}
-            );
+            vector<vector<string>> transactions;
+            try
+            {
+                transactions = database::client::query(
+                    "SELECT * FROM transactions WHERE post_id = $1;",
+                    {post_id}
+                );
+            }
+            catch (const std::exception& e)
+            {
+                res.result(http::status::internal_server_error);
+                res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
+                res.prepare_payload();
+                return res;
+            }
+
             if (transactions.empty())
                 response["transaction"] = nlohmann::json();
             else
@@ -172,10 +217,22 @@ namespace controllers::post
         }
         else
         {
-            const auto bids = database::client::query(
-                "SELECT * FROM bids WHERE post_id = $1 ORDER BY price DESC;",
-                {post_id}
-            );
+            vector<vector<string>> bids;
+            try
+            {
+                bids = database::client::query(
+                    "SELECT * FROM bids WHERE post_id = $1 ORDER BY price DESC;",
+                    {post_id}
+                );
+            }
+            catch (const std::exception& e)
+            {
+                res.result(http::status::internal_server_error);
+                res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
+                res.prepare_payload();
+                return res;
+            }
+
             response["bids"] = nlohmann::json::array();
             for (const auto& bid : bids)
                 response["bids"].push_back({
@@ -248,9 +305,17 @@ namespace controllers::post
         const string type = body["type"].get<string>();
 
         const auto result = database::client::query(
-            "UPDATE posts SET title = $1, description = $2, price = $3, type = $4 WHERE id = $5 AND user_id = $6;",
-            {title, description, to_string(price), type, to_string(uuid), user_id}
-        );
+                "UPDATE posts SET title = $1, description = $2, price = $3, type = $4 WHERE id = $5 AND user_id = $6;",
+                {title, description, to_string(price), type, to_string(uuid), user_id}
+            );
+        }
+        catch (const std::exception& e)
+        {
+            res.result(http::status::internal_server_error);
+            res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
+            res.prepare_payload();
+            return res;
+        }
 
         nlohmann::json response;
         response["message"] = "Post updated successfully";
@@ -300,10 +365,20 @@ namespace controllers::post
             return res;
         }
 
-        const auto result = database::client::query(
-            "UPDATE posts SET status = 'inactive' WHERE id = $1 AND user_id = $2;",
-            {to_string(uuid), data["id"]}
-        );
+        try
+        {
+            const auto result = database::client::query(
+                "UPDATE posts SET status = 'inactive' WHERE id = $1 AND user_id = $2;",
+                {to_string(uuid), data["id"]}
+            );
+        }
+        catch (const std::exception& e)
+        {
+            res.result(http::status::internal_server_error);
+            res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
+            res.prepare_payload();
+            return res;
+        }
 
         nlohmann::json response;
         response["message"] = "Post deleted successfully";
