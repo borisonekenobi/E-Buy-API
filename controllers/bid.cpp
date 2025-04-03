@@ -43,7 +43,7 @@ namespace controllers::post
 
         const string post_id = req.target().substr(15);
         boost::uuids::uuid uuid;
-        if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4)
+        if (!is_valid_uuid(post_id, uuid) || uuid.version() != UUIDv4)
         {
             res.result(http::status::bad_request);
             res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
@@ -73,7 +73,7 @@ namespace controllers::post
         }
 
         const auto& post = results[0];
-        if (post[5] != "auction")
+        if (post[POST_TYPE_INDEX] != "auction")
         {
             res.result(http::status::forbidden);
             res.body() = nlohmann::json::parse(R"({"message": "Post is not an auction."})").dump();
@@ -94,20 +94,20 @@ namespace controllers::post
         nlohmann::json response;
         response["message"] = "Bid placed successfully";
         response["post"] = {
-            {"id", post[0]},
-            {"user_id", post[1]},
-            {"title", post[2]},
-            {"description", post[3]},
-            {"price", post[4]},
-            {"type", post[5]},
-            {"status", post[6]},
+            {"id", post[POST_ID_INDEX]},
+            {"user_id", post[POST_USER_ID_INDEX]},
+            {"title", post[POST_TITLE_INDEX]},
+            {"description", post[POST_DESCRIPTION_INDEX]},
+            {"price", post[POST_PRICE_INDEX]},
+            {"type", post[POST_TYPE_INDEX]},
+            {"status", post[POST_STATUS_INDEX]},
             {"bids", nlohmann::json::array()}
         };
         for (const auto& bid : bids)
             response["post"]["bids"].push_back({
-                {"id", bid[0]},
-                {"user_id", bid[1]},
-                {"price", bid[3]},
+                {"id", bid[BID_ID_INDEX]},
+                {"user_id", bid[BID_USER_ID_INDEX]},
+                {"price", bid[BID_PRICE_INDEX]},
             });
         res.result(http::status::ok);
         res.body() = response.dump();

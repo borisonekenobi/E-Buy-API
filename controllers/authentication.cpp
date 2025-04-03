@@ -101,13 +101,13 @@ namespace controllers::authentication
 
         const auto users = database::client::query(
             "SELECT * FROM users WHERE id = $1 AND status = 'active'",
-            {data["id"].get<std::string>()}
+            {data["id"].get<string>()}
         );
         const auto& user = users[0];
-        auto salt = user[4];
-        const auto hashed = ::hash(body["password"].get<std::string>(), salt);
-        const auto new_hashed = ::hash(body["new_password"].get<std::string>(), salt);
-        if (hashed != user[3])
+        auto salt = user[USER_SALT_INDEX];
+        const auto hashed = ::hash(body["password"].get<string>(), salt);
+        const auto new_hashed = ::hash(body["new_password"].get<string>(), salt);
+        if (hashed != user[USER_PASSWORD_INDEX])
         {
             res.result(http::status::not_found);
             nlohmann::json response;
@@ -159,7 +159,7 @@ namespace controllers::authentication
         }
 
         auto user = users[0];
-        auto salt = user[4];
+        auto salt = user[USER_SALT_INDEX];
         if (const auto hashed = ::hash(body["password"].get<std::string>(), salt); hashed != user[3])
         {
             res.result(http::status::not_found);
@@ -173,11 +173,11 @@ namespace controllers::authentication
         res.result(http::status::ok);
         nlohmann::json response;
         response["user"] = {
-            {"id", user[0]},
-            {"name", user[1]},
-            {"username", user[2]},
-            {"type", user[5]},
-            {"status", user[6]}
+            {"id", user[USER_ID_INDEX]},
+            {"name", user[USER_NAME_INDEX]},
+            {"username", user[USER_USERNAME_INDEX]},
+            {"type", user[USER_TYPE_INDEX]},
+            {"status", user[USER_STATUS_INDEX]}
         };
         nlohmann::json refresh = {{"type", "refresh"}, {"user", response["user"]}};
         response["access"] = generate_access_token(response["user"]);

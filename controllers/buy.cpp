@@ -43,7 +43,7 @@ namespace controllers::post
 
         const string post_id = req.target().substr(15);
         boost::uuids::uuid uuid;
-        if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4)
+        if (!is_valid_uuid(post_id, uuid) || uuid.version() != UUIDv4)
         {
             res.result(http::status::bad_request);
             res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
@@ -64,7 +64,7 @@ namespace controllers::post
         }
 
         const auto& post = results[0];
-        if (post[5] != "sale")
+        if (post[POST_TYPE_INDEX] != "sale")
         {
             res.result(http::status::forbidden);
             res.body() = nlohmann::json::parse(R"({"message": "This post is not for sale."})").dump();
@@ -97,10 +97,14 @@ namespace controllers::post
             cerr << e.what() << endl;
 
             // Try to roll back (safe fallback)
-            try {
+            try
+            {
                 database::client::transactional_query(db, "ROLLBACK TRANSACTION;", {});
                 database::client::close_connection(db);
-            } catch (...) {}
+            }
+            catch (...)
+            {
+            }
 
             res.result(http::status::internal_server_error);
             res.body() = R"({"message": "Internal Server Error"})";
@@ -111,18 +115,20 @@ namespace controllers::post
         nlohmann::json response;
         response["message"] = "Post bought successfully";
         response["post"] = {
-            {"id", post[0]},
-            {"user_id", post[1]},
-            {"title", post[2]},
-            {"description", post[3]},
-            {"price", post[4]},
-            {"type", post[5]},
+            {"id", post[POST_ID_INDEX]},
+            {"user_id", post[POST_USER_ID_INDEX]},
+            {"title", post[POST_TITLE_INDEX]},
+            {"description", post[POST_DESCRIPTION_INDEX]},
+            {"price", post[POST_PRICE_INDEX]},
+            {"type", post[POST_TYPE_INDEX]},
             {"status", "sold"},
-            {"transaction", {
-                {"id", to_string(gen_uuid())},
-                {"user_id", data["id"].get<string>()},
-                {"price", post[4]},
-            }}
+            {
+                "transaction", {
+                    {"id", to_string(gen_uuid())},
+                    {"user_id", data["id"].get<string>()},
+                    {"price", post[POST_PRICE_INDEX]},
+                }
+            }
         };
         res.result(http::status::ok);
         res.body() = response.dump();
