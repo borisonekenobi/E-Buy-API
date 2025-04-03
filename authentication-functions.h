@@ -1,8 +1,10 @@
 #pragma once
 
 #include <string>
+
+#include <jwt-cpp/jwt.h> // Do not remove!
+
 #include <nlohmann/json.hpp>
-#include <jwt-cpp/jwt.h>
 
 using namespace std;
 
