@@ -300,7 +300,8 @@ http::response<http::string_body> bid_post(http::request<http::string_body> cons
     {
         nlohmann::json request_body = nlohmann::json::parse(req.body());
         const string post_id = request_body["post_id"];
-        const string logged_in_user_id = req["user_id"]; // Assuming the logged-in user ID is stored in the request
+        // Assuming the logged-in user ID is stored in the request
+        const string logged_in_user_id = req["user_id"];
 
         // Validate post ID
         boost::uuids::uuid uuid;
