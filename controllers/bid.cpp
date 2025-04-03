@@ -99,7 +99,7 @@ namespace controllers::bid {
     //get bid by post_id FOR FRONT END FETCH
     http::response<http::string_body> get_bid(http::request<http::string_body> const &req,
                                               http::response<http::string_body>& res) {
-        const string post_id = req.target().substr(11);
+        const string post_id = req.target().substr(10);
 
         if (post_id.empty()) {
             res.result(http::status::bad_request);

@@ -210,3 +210,65 @@
   }
 }
 ```
+
+## Bid Endpoints
+
+### Place Bid
+
+#### Request
+
+`POST` /api/posts/bid/id
+
+```json
+{
+        "id": "",
+        "user_id": "",
+        "price": 13.00
+}
+```
+
+#### Response
+
+`200 OK`
+
+```json
+{
+  "bids": [
+    {
+      "id": "",
+      "user_id": "",
+      "price": 31.00
+    },
+    {
+      "id": "",
+      "user_id": "",
+      "price": 13.00
+    }
+  ]
+}
+
+```
+
+
+### Get Bids by Post ID
+
+#### Request
+
+`GET` /api/bids/{post_id}
+
+#### Response
+
+`200 OK`
+
+```json
+{
+  "bids": [
+    {
+      "id": "",
+      "user_id": "",
+      "price": 31.00
+    }
+  ]
+}
+
+```
