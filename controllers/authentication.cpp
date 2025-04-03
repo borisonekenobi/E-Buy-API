@@ -103,7 +103,7 @@ namespace controllers::authentication
             "SELECT * FROM users WHERE id = $1 AND status = 'active'",
             {data["id"].get<std::string>()}
         );
-        const auto user = users[0];
+        const auto& user = users[0];
         auto salt = user[4];
         const auto hashed = ::hash(body["password"].get<std::string>(), salt);
         const auto new_hashed = ::hash(body["new_password"].get<std::string>(), salt);
@@ -209,7 +209,7 @@ namespace controllers::authentication
 
         const auto token = auth_header.substr(7);
         const auto data = verify_token(token);
-        const auto user = data["user"];
+        const auto& user = data["user"];
         if (data.empty() || !data.contains("type") || data["type"] != "refresh" || !is_valid_token_data(user))
         {
             res.result(http::status::unauthorized);

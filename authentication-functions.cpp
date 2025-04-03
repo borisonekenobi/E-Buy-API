@@ -109,6 +109,6 @@ nlohmann::basic_json<> verify_token(const string& token)
 	}
 	catch (...)
 	{
-		return nlohmann::json();
+		return {};
 	}
 }

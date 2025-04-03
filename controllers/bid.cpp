@@ -1,5 +1,3 @@
-#include <iostream>
-
 #include <nlohmann/json.hpp>
 
 #include "post.h"
@@ -74,7 +72,7 @@ namespace controllers::post
             return res;
         }
 
-        const auto post = results[0];
+        const auto& post = results[0];
         if (post[5] != "auction")
         {
             res.result(http::status::forbidden);
