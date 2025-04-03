@@ -52,10 +52,10 @@ namespace controllers::post
         }
 
         const string uuid = to_string(gen_uuid());
-        const string user_id = data["id"];
-        const string title = body["title"];
-        const string description = body["description"];
-        const string price = body["price"];
+        const string user_id = to_string(data["id"]);
+        const string title = to_string(body["title"]);
+        const string description = to_string(body["description"]);
+        const string price = to_string(body["price"]);
         const string type = body["type"];
         const string status = "active";
 
