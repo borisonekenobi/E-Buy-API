@@ -1,8 +1,12 @@
-#include <fstream>
-#include <openssl/sha.h>
-#include <openssl/rand.h>
-
 #include "authentication-functions.h"
+
+#include <fstream>
+#include <iostream>
+
+// #include <jwt-cpp/jwt.h>
+
+#include <openssl/rand.h>
+#include <openssl/sha.h>
 
 map<string, string> env_map;
 

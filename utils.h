@@ -1,9 +1,12 @@
 #pragma once
 
 #include <string>
+
+#include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_io.hpp>
-#include <boost/uuid/random_generator.hpp>
+
+#include <nlohmann/json.hpp>
 
 using namespace std;
 

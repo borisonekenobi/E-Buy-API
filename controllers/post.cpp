@@ -1,16 +1,17 @@
-#include <nlohmann/json.hpp>
-#include <iostream>
-
 #include "post.h"
+
+#include <nlohmann/json.hpp>
+
 #include "../utils.h"
-#include "bid.h"
+
 #include "../database/client.h"
 
 using namespace std;
 
-namespace controllers::post {
-    http::response<http::string_body> create_post(http::request<http::string_body> const &req,
-                                                  http::response<http::string_body> &res)
+namespace controllers::post
+{
+    http::response<http::string_body> create(http::request<http::string_body> const& req,
+                                             http::response<http::string_body>& res)
     {
         nlohmann::json request_body = nlohmann::json::parse(req.body());
         const string user_id = request_body["user_id"];
@@ -29,7 +30,7 @@ namespace controllers::post {
         );
 
         if (result.empty())
-            {
+        {
             res.result(http::status::internal_server_error);
             res.body() = R"({"message": "Internal Server Error"})";
             res.prepare_payload();
@@ -46,97 +47,106 @@ namespace controllers::post {
         return res;
     }
 
-http::response<http::string_body> buy_post(http::request<http::string_body> const &req,
-                                           http::response<http::string_body> &res)
-{
-    nlohmann::json request_body = nlohmann::json::parse(req.body());
-    const string user_id = request_body["user_id"];
-    const string post_id = request_body["post_id"];
-
-    // Retrieve post status
-    const auto post_status_result = database::client::query("SELECT status FROM posts WHERE id = $1;", {post_id});
-    if (post_status_result.empty())
+    http::response<http::string_body> find(http::request<http::string_body> const& req,
+                                           http::response<http::string_body>& res)
     {
-        res.result(http::status::internal_server_error);
-        res.body() = R"({"message": "Internal Server Error"})";
-        res.prepare_payload();
-        return res;
-    }
-    string status = post_status_result[0][0];
-    if (status == "inactive" || status == "sold")
-    {
-        res.result(http::status::bad_request);
-        res.body() = R"({"message": "Post is not available for purchase"})";
+        res.result(http::status::not_implemented);
+        res.body() = R"({"message": "Not Implemented"})";
         res.prepare_payload();
         return res;
     }
 
-    // Retrieve user balance
-    const auto user_balance_result = database::client::query("SELECT balance FROM users WHERE id = $1;", {user_id});
-    if (user_balance_result.empty())
+    http::response<http::string_body> buy_post(http::request<http::string_body> const& req,
+                                               http::response<http::string_body>& res)
     {
-        res.result(http::status::internal_server_error);
-        res.body() = R"({"message": "Internal Server Error"})";
-        res.prepare_payload();
-        return res;
-    }
-    int balance = stod(user_balance_result[0][0]);
+        nlohmann::json request_body = nlohmann::json::parse(req.body());
+        const string user_id = request_body["user_id"];
+        const string post_id = request_body["post_id"];
 
-    // Retrieve post price
-    const auto post_price_result = database::client::query("SELECT price FROM posts WHERE id = $1;", {post_id});
-    if (post_price_result.empty())
-    {
-        res.result(http::status::internal_server_error);
-        res.body() = R"({"message": "Internal Server Error"})";
-        res.prepare_payload();
-        return res;
-    }
-    int price = stod(post_price_result[0][0]);
-
-    // Update user balance
-    balance -= price;
-
-    if (balance < 0)
-    {
-        res.result(http::status::bad_request);
-        res.body() = R"({"message": "Insufficient balance"})";
-        res.prepare_payload();
-        return res;
-    }
-    else
-    {
-        if (database::client::query("UPDATE users SET balance = $1 WHERE id = $2;", {to_string(balance), user_id}).empty())
+        // Retrieve post status
+        const auto post_status_result = database::client::query("SELECT status FROM posts WHERE id = $1;", {post_id});
+        if (post_status_result.empty())
         {
             res.result(http::status::internal_server_error);
             res.body() = R"({"message": "Internal Server Error"})";
             res.prepare_payload();
             return res;
         }
+        string status = post_status_result[0][0];
+        if (status == "inactive" || status == "sold")
+        {
+            res.result(http::status::bad_request);
+            res.body() = R"({"message": "Post is not available for purchase"})";
+            res.prepare_payload();
+            return res;
+        }
 
-        // Update post status
-        if (database::client::query("UPDATE posts SET status = 'sold' WHERE id = $1;", {post_id}).empty())
+        // Retrieve user balance
+        const auto user_balance_result = database::client::query("SELECT balance FROM users WHERE id = $1;", {user_id});
+        if (user_balance_result.empty())
         {
             res.result(http::status::internal_server_error);
             res.body() = R"({"message": "Internal Server Error"})";
             res.prepare_payload();
             return res;
         }
+        int balance = stod(user_balance_result[0][0]);
 
-        res.result(http::status::created);
-        res.body() = R"({"message": "Post purchased successfully"})";
-        res.prepare_payload();
-        return res;
+        // Retrieve post price
+        const auto post_price_result = database::client::query("SELECT price FROM posts WHERE id = $1;", {post_id});
+        if (post_price_result.empty())
+        {
+            res.result(http::status::internal_server_error);
+            res.body() = R"({"message": "Internal Server Error"})";
+            res.prepare_payload();
+            return res;
+        }
+        int price = stod(post_price_result[0][0]);
+
+        // Update user balance
+        balance -= price;
+
+        if (balance < 0)
+        {
+            res.result(http::status::bad_request);
+            res.body() = R"({"message": "Insufficient balance"})";
+            res.prepare_payload();
+            return res;
+        }
+        else
+        {
+            if (database::client::query("UPDATE users SET balance = $1 WHERE id = $2;", {to_string(balance), user_id}).
+                empty())
+            {
+                res.result(http::status::internal_server_error);
+                res.body() = R"({"message": "Internal Server Error"})";
+                res.prepare_payload();
+                return res;
+            }
+
+            // Update post status
+            if (database::client::query("UPDATE posts SET status = 'sold' WHERE id = $1;", {post_id}).empty())
+            {
+                res.result(http::status::internal_server_error);
+                res.body() = R"({"message": "Internal Server Error"})";
+                res.prepare_payload();
+                return res;
+            }
+
+            res.result(http::status::created);
+            res.body() = R"({"message": "Post purchased successfully"})";
+            res.prepare_payload();
+            return res;
+        }
     }
-}
 
-
-    http::response<http::string_body> get_post(http::request<http::string_body> const &req,
-                                               http::response<http::string_body> &res)
+    http::response<http::string_body> find_one(http::request<http::string_body> const& req,
+                                               http::response<http::string_body>& res)
     {
         const string post_id = req.target().substr(11);
 
         if (post_id.empty())
-            {
+        {
             res.result(http::status::bad_request);
             res.body() = nlohmann::json::parse(R"({"message": "Post ID is missing"})").dump();
             res.prepare_payload();
@@ -145,7 +155,7 @@ http::response<http::string_body> buy_post(http::request<http::string_body> cons
 
         boost::uuids::uuid uuid;
         if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4)
-            {
+        {
             res.result(http::status::bad_request);
             res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
             res.prepare_payload();
@@ -154,7 +164,7 @@ http::response<http::string_body> buy_post(http::request<http::string_body> cons
 
         const auto post = database::client::query("SELECT * FROM posts WHERE id = $1;", {post_id});
         if (post.empty())
-            {
+        {
             res.result(http::status::not_found);
             res.body() = nlohmann::json::parse(R"({"message": "Post not found"})").dump();
             res.prepare_payload();
@@ -163,7 +173,7 @@ http::response<http::string_body> buy_post(http::request<http::string_body> cons
 
         nlohmann::json response;
         response["post"] =
-            {
+        {
             {"id", post[0][0]},
             {"user_id", post[0][1]},
             {"title", post[0][2]},
@@ -174,22 +184,23 @@ http::response<http::string_body> buy_post(http::request<http::string_body> cons
         };
 
         const string post_type = response["post"]["type"];
-        vector<vector<string> > post_data;
+        vector<vector<string>> post_data;
         if (post_type == "sale")
-            {
+        {
             post_data = database::client::query("SELECT * FROM transactions WHERE post_id = $1;", {post_id});
             response["post"]["transactions"] = nlohmann::json::array();
-            for (const auto &transaction: post_data)
-                {
+            for (const auto& transaction : post_data)
+            {
                 response["post"]["transactions"].push_back({
                     {"id", transaction[0]},
                     {"user_id", transaction[1]},
                     {"price", transaction[3]},
                 });
             }
-        } else
-            {
-            response["post"]["bids"] = bid::get_bids_by_post_id(post_id);
+        }
+        else
+        {
+            // response["post"]["bids"] = bid::get_bids_by_post_id(post_id);
         }
 
         res.result(http::status::ok);
@@ -198,8 +209,8 @@ http::response<http::string_body> buy_post(http::request<http::string_body> cons
         return res;
     }
 
-    http::response<http::string_body> change_post(http::request<http::string_body> const &req,
-                                                  http::response<http::string_body> &res)
+    http::response<http::string_body> edit(http::request<http::string_body> const& req,
+                                           http::response<http::string_body>& res)
     {
         nlohmann::json request_body = nlohmann::json::parse(req.body());
         const string post_id = request_body["post_id"];
@@ -251,6 +262,15 @@ http::response<http::string_body> buy_post(http::request<http::string_body> cons
 
         res.result(http::status::ok);
         res.body() = response.dump();
+        res.prepare_payload();
+        return res;
+    }
+
+    http::response<http::string_body> delete_(http::request<http::string_body> const& req,
+                                              http::response<http::string_body>& res)
+    {
+        res.result(http::status::not_implemented);
+        res.body() = R"({"message": "Not Implemented"})";
         res.prepare_payload();
         return res;
     }

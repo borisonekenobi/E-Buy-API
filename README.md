@@ -1,17 +1,24 @@
 # E-Buy-API
 
 ## Table of Contents
+
 - [E-Buy-API](#e-buy-api)
-  - [Table of Contents](#table-of-contents)
-  - [Authentication Endpoints](#authentication-endpoints)
-    - [Sign Up](#sign-up)
-    - [Change Password](#change-password)
-    - [Sign In](#sign-in)
-    - [Refresh Tokens](#refresh-tokens)
-  - [Post Endpoints](#post-endpoints)
-    - [Create Post](#create-post)
-    - [Get Posts](#get-posts)
-    - [Get Post by ID](#get-post-by-id)
+    - [Table of Contents](#table-of-contents)
+    - [Authentication Endpoints](#authentication-endpoints)
+        - [Sign Up](#sign-up)
+        - [Change Password](#change-password)
+        - [Sign In](#sign-in)
+        - [Refresh Tokens](#refresh-tokens)
+    - [Post Endpoints](#post-endpoints)
+        - [Create Post](#create-post)
+        - [Get Posts](#get-posts)
+        - [Get Post by ID](#get-post-by-id)
+        - [Update Post](#update-post)
+        - [Delete Post](#delete-post)
+    - [Transaction Endpoints](#transaction-endpoints)
+        - [Create Transaction](#create-transaction)
+    - [Bid Endpoints](#bid-endpoints)
+        - [Place Bid](#place-bid)
 
 ## Authentication Endpoints
 
@@ -100,7 +107,7 @@
 
 - Requires authentication (with refresh token)
 
-`POST` /api/refresh
+`POST` /api/renew-tokens
 
 #### Response
 
@@ -108,8 +115,8 @@
 
 ```json
 {
-  "access": "ey",
-  "refresh": "ey"
+  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjoie1wiaWRcIjpcIjBhMmU2MmVlLWIwNGQtNDNmZC1hNjMzLTBmYTBlZDkzNDQ2YVwiLFwibmFtZVwiOlwiSm9obiBEb2VcIixcInN0YXR1c1wiOlwiYWN0aXZlXCIsXCJ0eXBlXCI6XCJzdGFuZGFyZFwiLFwidXNlcm5hbWVcIjpcImpvaG5kb2VcIn0iLCJleHAiOjE3NDM2MzAzNzcsImlzcyI6ImF1dGgwIn0.tUzuYSsH_nw5bH9Z8T6xDrOqY9NpTDIEUI70KOuUsms",
+  "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjoie1wiaWRcIjpcIjBhMmU2MmVlLWIwNGQtNDNmZC1hNjMzLTBmYTBlZDkzNDQ2YVwiLFwibmFtZVwiOlwiSm9obiBEb2VcIixcInN0YXR1c1wiOlwiYWN0aXZlXCIsXCJ0eXBlXCI6XCJzdGFuZGFyZFwiLFwidXNlcm5hbWVcIjpcImpvaG5kb2VcIn0iLCJleHAiOjE3NDYyMTg3NzcsImlzcyI6ImF1dGgwIn0.bilvcZgMHani1-gfuyCnXuw-2iAJDzSm7MZlQxc0Ht0"
 }
 ```
 
@@ -211,64 +218,93 @@
 }
 ```
 
+### Update Post
+
+#### Request
+
+- Requires authentication
+
+`PUT` /api/posts/{id}
+
+```json
+{
+  "title": "Updated Post Title",
+  "description": "Updated description.",
+  "price": 24.99,
+  "type": "sale"
+}
+```
+
+#### Response
+
+`200 OK`
+
+```json
+{
+  "message": "Post updated successfully"
+}
+```
+
+### Delete Post
+
+#### Request
+
+- Requires authentication
+
+`DELETE` /api/posts/{id}
+
+#### Response
+
+`200 OK`
+
+```json
+{
+  "message": "Post deleted successfully"
+}
+```
+
+## Transaction Endpoints
+
+### Create Transaction
+
+#### Request
+
+- Requires authentication
+
+`POST` /api/posts/buy/{id}
+
+#### Response
+
+`201 Created`
+
+```json
+{
+  "message": "Transaction created successfully"
+}
+```
+
 ## Bid Endpoints
 
 ### Place Bid
 
 #### Request
 
-`POST` /api/posts/bid/id
+- Requires authentication
+
+`POST` /api/posts/bid/{id}
 
 ```json
 {
-        "id": "",
-        "user_id": "",
-        "price": 13.00
+  "price": 13.00
 }
 ```
 
 #### Response
 
-`200 OK`
+`201 OK`
 
 ```json
 {
-  "bids": [
-    {
-      "id": "",
-      "user_id": "",
-      "price": 31.00
-    },
-    {
-      "id": "",
-      "user_id": "",
-      "price": 13.00
-    }
-  ]
+  "message": "Bid placed successfully"
 }
-
-```
-
-
-### Get Bids by Post ID
-
-#### Request
-
-`GET` /api/bids/{post_id}
-
-#### Response
-
-`200 OK`
-
-```json
-{
-  "bids": [
-    {
-      "id": "",
-      "user_id": "",
-      "price": 31.00
-    }
-  ]
-}
-
 ```
