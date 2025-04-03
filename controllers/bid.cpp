@@ -1,7 +1,10 @@
+#include <iostream>
+
 #include <nlohmann/json.hpp>
 
 #include "post.h"
 
+#include "../authentication-functions.h"
 #include "../utils.h"
 
 #include "../database/client.h"
@@ -13,77 +16,90 @@ namespace controllers::post
     http::response<http::string_body> bid(http::request<http::string_body> const& req,
                                           http::response<http::string_body>& res)
     {
-        nlohmann::json request_body = nlohmann::json::parse(req.body());
-        const string user_id = request_body["user_id"];
-        const string post_id = request_body["post_id"];
-        const int new_price = request_body["new_price"];
-
-        // Retrieve post status and current price
-        const auto post_result = database::client::query("SELECT status, price FROM posts WHERE id = $1;", {post_id});
-        if (post_result.empty())
+        const auto auth_header = req[http::field::authorization];
+        if (auth_header.empty())
         {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
-        }
-        string status = post_result[0][0];
-        double current_price = stod(post_result[0][1]);
-
-        if (status == "inactive" || status == "sold")
-        {
-            res.result(http::status::bad_request);
-            res.body() = R"({"message": "Post is not available for bidding"})";
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Authorization header is missing."})").dump();
             res.prepare_payload();
             return res;
         }
 
-        if (new_price <= current_price)
+        const auto space_pos = auth_header.find(' ');
+        if (space_pos == string::npos)
         {
-            res.result(http::status::bad_request);
-            res.body() = R"({"message": "Bid price must be larger than the current price"})";
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid authorization header format."})").dump();
             res.prepare_payload();
             return res;
         }
 
-        // Retrieve user balance
-        const auto user_balance_result = database::client::query("SELECT balance FROM users WHERE id = $1;", {user_id});
-        if (user_balance_result.empty())
+        const auto data = verify_token(auth_header.substr(space_pos + 1));
+        if (!is_valid_token_data(data))
         {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid or expired token."})").dump();
             res.prepare_payload();
             return res;
         }
-        int balance = stoi(user_balance_result[0][0]);
-        if (balance < new_price)
+
+        const string post_id = req.target().substr(15);
+        boost::uuids::uuid uuid;
+        if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4)
         {
             res.result(http::status::bad_request);
-            res.body() = R"({"message": "Insufficient balance"})";
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
             res.prepare_payload();
             return res;
         }
 
-        const auto uuid = to_string(gen_uuid());
-
-        // Update post with the current bidded price
-        if (database::client::query("UPDATE posts SET price = $1 WHERE id = $2;", {to_string(new_price), post_id}).
-            empty())
-        {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
-        }
-
-        // Insert new bid into the bids table
-        const auto bid_result = database::client::query(
-            "INSERT INTO bids (id, user_id, post_id, price) VALUES ($1, $2, $3, $4) RETURNING id;",
-            {uuid, user_id, post_id, to_string(new_price)}
+        const auto results = database::client::query(
+            "SELECT * FROM posts WHERE id = $1 AND status = 'active';",
+            {to_string(uuid)}
         );
-
-        if (bid_result.empty())
+        if (results.empty())
         {
+            res.result(http::status::not_found);
+            res.body() = nlohmann::json::parse(R"({"message": "Post not found."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const auto post = results[0];
+        if (post[5] != "sale")
+        {
+            res.result(http::status::forbidden);
+            res.body() = nlohmann::json::parse(R"({"message": "This post is not for sale."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        try
+        {
+            /*** CRITICAL SECTION ***/
+            // TODO: Use a mutex or a lock to ensure thread safety
+
+            // TODO: transaction doesn't begin?
+            database::client::query("BEGIN TRANSACTION;", {});
+
+            database::client::query(
+                "INSERT INTO transactions (id, user_id, post_id, price) VALUES ($1, $2, $3, $4);",
+                {to_string(gen_uuid()), data["id"], to_string(uuid), post[4]}
+            );
+
+            database::client::query(
+                "UPDATE posts SET status = 'sold' WHERE id = $1;",
+                {to_string(uuid)}
+            );
+
+            // TODO: throws error because of the transaction
+            database::client::query("COMMIT TRANSACTION;", {});
+            /*** END CRITICAL SECTION ***/
+        }
+        catch (const exception& e)
+        {
+            cerr << e.what() << endl;
+            database::client::query("ROLLBACK TRANSACTION;", {});
             res.result(http::status::internal_server_error);
             res.body() = R"({"message": "Internal Server Error"})";
             res.prepare_payload();
@@ -91,29 +107,19 @@ namespace controllers::post
         }
 
         nlohmann::json response;
-        response["message"] = "Bid placed successfully";
-        response["bid_id"] = bid_result[0][0];
-
-        res.result(http::status::created);
+        response["message"] = "Post bought successfully";
+        response["post"] = {
+            {"id", post[0]},
+            {"user_id", post[1]},
+            {"title", post[2]},
+            {"description", post[3]},
+            {"price", post[4]},
+            {"type", post[5]},
+            {"status", "sold"}
+        };
+        res.result(http::status::ok);
         res.body() = response.dump();
         res.prepare_payload();
         return res;
-    }
-
-    nlohmann::json get_bids_by_post_id(const string& post_id)
-    {
-        nlohmann::json bids_json = nlohmann::json::array();
-        const auto bids = database::client::query("SELECT * FROM bids WHERE post_id = $1;", {post_id});
-
-        for (const auto& bid : bids)
-        {
-            bids_json.push_back({
-                {"id", bid[0]},
-                {"user_id", bid[1]},
-                {"price", bid[3]},
-            });
-        }
-
-        return bids_json;
     }
 }
