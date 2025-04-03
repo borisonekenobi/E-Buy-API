@@ -1,5 +1,4 @@
 #include <nlohmann/json.hpp>
-#include <iostream>
 
 #include "post.h"
 #include "../utils.h"
