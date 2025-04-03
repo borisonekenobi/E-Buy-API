@@ -55,7 +55,7 @@ namespace controllers::post
         const string user_id = data["id"].get<string>();
         const string title = body["title"].get<string>();
         const string description = body["description"].get<string>();
-        const string price = body["price"].get<string>();
+        const double price = body["price"].get<double>();
         const string type = body["type"].get<string>();
         const string status = "active";
 
@@ -63,7 +63,7 @@ namespace controllers::post
         {
             const auto result = database::client::query(
                 "INSERT INTO posts (id, user_id, title, description, price, type, status) VALUES ($1, $2, $3, $4, $5, $6, $7);",
-                {uuid, user_id, title, description, price, type, status}
+                {uuid, user_id, title, description, to_string(price), type, status}
             );
         }
         catch (const std::exception& e)
@@ -121,13 +121,13 @@ namespace controllers::post
         auto response = nlohmann::json::array();
         for (const auto& post : posts)
             response.push_back({
-                {"id", post[0]},
-                {"user_id", post[1]},
-                {"title", post[2]},
-                {"description", post[3]},
-                {"price", post[4]},
-                {"type", post[5]},
-                {"status", post[6]},
+                {"id", post[POST_ID_INDEX]},
+                {"user_id", post[POST_USER_ID_INDEX]},
+                {"title", post[POST_TITLE_INDEX]},
+                {"description", post[POST_DESCRIPTION_INDEX]},
+                {"price", post[POST_PRICE_INDEX]},
+                {"type", post[POST_TYPE_INDEX]},
+                {"status", post[POST_STATUS_INDEX]},
             });
         res.result(http::status::ok);
         res.body() = response.dump();
@@ -149,7 +149,7 @@ namespace controllers::post
         }
 
         boost::uuids::uuid uuid;
-        if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4)
+        if (!is_valid_uuid(post_id, uuid) || uuid.version() != UUIDv4)
         {
             res.result(http::status::bad_request);
             res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
@@ -179,13 +179,13 @@ namespace controllers::post
         }
 
         nlohmann::json response = {
-            {"id", post[0]},
-            {"user_id", post[1]},
-            {"title", post[2]},
-            {"description", post[3]},
-            {"price", post[4]},
-            {"type", post[5]},
-            {"status", post[6]},
+            {"id", post[POST_ID_INDEX]},
+            {"user_id", post[POST_USER_ID_INDEX]},
+            {"title", post[POST_TITLE_INDEX]},
+            {"description", post[POST_DESCRIPTION_INDEX]},
+            {"price", post[POST_PRICE_INDEX]},
+            {"type", post[POST_TYPE_INDEX]},
+            {"status", post[POST_STATUS_INDEX]},
         };
 
         if (response["type"] == "sale")
@@ -210,9 +210,9 @@ namespace controllers::post
                 response["transaction"] = nlohmann::json();
             else
                 response["transaction"] = {
-                {"id", transactions[0][0]},
-                {"user_id", transactions[0][1]},
-                {"price", transactions[0][3]},
+                {"id", transactions[0][TRANSACTION_ID_INDEX]},
+                {"user_id", transactions[0][TRANSACTION_USER_ID_INDEX]},
+                {"price", transactions[0][TRANSACTION_PRICE_INDEX]},
             };
         }
         else
@@ -236,9 +236,9 @@ namespace controllers::post
             response["bids"] = nlohmann::json::array();
             for (const auto& bid : bids)
                 response["bids"].push_back({
-                    {"id", bid[0]},
-                    {"user_id", bid[1]},
-                    {"price", bid[3]},
+                    {"id", bid[BID_ID_INDEX]},
+                    {"user_id", bid[BID_USER_ID_INDEX]},
+                    {"price", bid[BID_PRICE_INDEX]},
                 });
         }
 
@@ -280,7 +280,7 @@ namespace controllers::post
 
         const string post_id = req.target().substr(11);
         boost::uuids::uuid uuid;
-        if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4)
+        if (!is_valid_uuid(post_id, uuid) || uuid.version() != UUIDv4)
         {
             res.result(http::status::bad_request);
             res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
@@ -298,17 +298,15 @@ namespace controllers::post
             return res;
         }
 
-        const string user_id = data["id"];
-        const string title = body["title"];
-        const string description = body["description"];
-        const string price = body["price"];
-        const string type = body["type"];
+        const string user_id = data["id"].get<string>();
+        const string title = body["title"].get<string>();
+        const string description = body["description"].get<string>();
+        const double price = body["price"].get<double>();
+        const string type = body["type"].get<string>();
 
-        try
-        {
-            const auto result = database::client::query(
+        const auto result = database::client::query(
                 "UPDATE posts SET title = $1, description = $2, price = $3, type = $4 WHERE id = $5 AND user_id = $6;",
-                {title, description, price, type, to_string(uuid), user_id}
+                {title, description, to_string(price), type, to_string(uuid), user_id}
             );
         }
         catch (const std::exception& e)
@@ -359,7 +357,7 @@ namespace controllers::post
 
         const string post_id = req.target().substr(11);
         boost::uuids::uuid uuid;
-        if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4)
+        if (!is_valid_uuid(post_id, uuid) || uuid.version() != UUIDv4)
         {
             res.result(http::status::bad_request);
             res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
