@@ -1,7 +1,6 @@
 #include <fstream>
 #include <openssl/sha.h>
 #include <openssl/rand.h>
-#include <tuple>
 
 #include "authentication-functions.h"
 
@@ -84,11 +83,11 @@ string generate_access_token(const nlohmann::basic_json<>& data)
 string generate_refresh_token(const nlohmann::basic_json<>& data)
 {
 	return jwt::create()
-		   .set_type(env_map["TOKEN_TYPE"])
-		   .set_issuer(env_map["TOKEN_ISSUER"])
-		   .set_expires_at(jwt::date::clock::now() + jwtRefreshExpireTime)
-		   .set_payload_claim("data", jwt::claim(data.dump()))
-		   .sign(jwt::algorithm::hs256(env_map["TOKEN_SECRET"]));
+	       .set_type(env_map["TOKEN_TYPE"])
+	       .set_issuer(env_map["TOKEN_ISSUER"])
+	       .set_expires_at(jwt::date::clock::now() + jwtRefreshExpireTime)
+	       .set_payload_claim("data", jwt::claim(data.dump()))
+	       .sign(jwt::algorithm::hs256(env_map["TOKEN_SECRET"]));
 }
 
 // Verifies the given token.

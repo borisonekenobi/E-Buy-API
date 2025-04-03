@@ -11,7 +11,7 @@ namespace controllers::authentication
     http::response<http::string_body> sign_up(http::request<http::string_body> const& req,
                                               http::response<http::string_body>& res)
     {
-        nlohmann::json body = nlohmann::json::parse(req.body());
+        auto body = nlohmann::json::parse(req.body());
         if (!body.contains("name") || !body.contains("username") || !body.contains("password"))
         {
             res.result(http::status::bad_request);
@@ -60,9 +60,68 @@ namespace controllers::authentication
     http::response<http::string_body> change_password(http::request<http::string_body> const& req,
                                                       http::response<http::string_body>& res)
     {
-        res.result(http::status::not_implemented);
+        const auto auth_header = req[http::field::authorization];
+        if (auth_header.empty())
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Authorization header is missing."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const auto space_pos = auth_header.find(' ');
+        if (space_pos == string::npos)
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid authorization header format."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const auto data = verify_token(auth_header.substr(space_pos + 1));
+        if (!is_valid_token_data(data))
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid or expired token."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        auto body = nlohmann::json::parse(req.body());
+        if (!body.contains("password") || !body.contains("new_password"))
+        {
+            res.result(http::status::bad_request);
+            nlohmann::json response;
+            response["message"] = "Missing required fields: password, new_password";
+            res.body() = response.dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const auto users = database::client::query("SELECT * FROM users WHERE id = $1",
+                                                   {data["id"].get<std::string>()});
+        const auto user = users[0];
+        auto salt = user[4];
+        const auto hashed = ::hash(body["password"].get<std::string>(), salt);
+        const auto new_hashed = ::hash(body["new_password"].get<std::string>(), salt);
+        if (hashed != user[3])
+        {
+            res.result(http::status::not_found);
+            nlohmann::json response;
+            response["message"] = "Invalid username or password";
+            res.body() = response.dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const auto update_result = database::client::query(
+            "UPDATE users SET password = $1 WHERE id = $2",
+            {new_hashed, data["id"].get<std::string>()}
+        );
+
+        res.result(http::status::ok);
         nlohmann::json response;
-        response["message"] = "Not implemented";
+        response["message"] = "Password changed successfully";
         res.body() = response.dump();
         res.prepare_payload();
         return res;
@@ -71,7 +130,7 @@ namespace controllers::authentication
     http::response<http::string_body> sign_in(http::request<http::string_body> const& req,
                                               http::response<http::string_body>& res)
     {
-        nlohmann::json body = nlohmann::json::parse(req.body());
+        auto body = nlohmann::json::parse(req.body());
         if (!body.contains("username") || !body.contains("password"))
         {
             res.result(http::status::bad_request);
@@ -144,6 +203,13 @@ namespace controllers::authentication
         }
 
         const auto data = verify_token(auth_header.substr(space_pos + 1));
+        if (!is_valid_token_data(data))
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid or expired token."})").dump();
+            res.prepare_payload();
+            return res;
+        }
 
         res.result(http::status::ok);
         nlohmann::json response;
