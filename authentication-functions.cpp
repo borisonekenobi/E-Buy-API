@@ -1,8 +1,12 @@
-#include <fstream>
-#include <openssl/sha.h>
-#include <openssl/rand.h>
-
 #include "authentication-functions.h"
+
+#include <fstream>
+#include <iostream>
+
+// #include <jwt-cpp/jwt.h>
+
+#include <openssl/rand.h>
+#include <openssl/sha.h>
 
 map<string, string> env_map;
 
@@ -93,12 +97,18 @@ string generate_refresh_token(const nlohmann::basic_json<>& data)
 // Verifies the given token.
 nlohmann::basic_json<> verify_token(const string& token)
 {
-	const auto decoded_token = jwt::decode(token);
-	const auto verifier = jwt::verify()
-	                      .with_type(env_map["TOKEN_TYPE"])
-	                      .with_issuer(env_map["TOKEN_ISSUER"])
-	                      .allow_algorithm(jwt::algorithm::hs256(env_map["TOKEN_SECRET"]));
-	verifier.verify(decoded_token);
+	try {
+		const auto decoded_token = jwt::decode(token);
+		const auto verifier = jwt::verify()
+							  .with_type(env_map["TOKEN_TYPE"])
+							  .with_issuer(env_map["TOKEN_ISSUER"])
+							  .allow_algorithm(jwt::algorithm::hs256(env_map["TOKEN_SECRET"]));
+		verifier.verify(decoded_token);
 
-	return nlohmann::json::parse(decoded_token.get_payload_json()["data"].get<string>());
+		return nlohmann::json::parse(decoded_token.get_payload_json()["data"].get<string>());
+	}
+	catch (...)
+	{
+		return {};
+	}
 }

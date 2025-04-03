@@ -1,12 +1,14 @@
 #include <iostream>
 #include <memory>
 #include <string>
+
 #include <boost/asio/strand.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 
 #include "authentication-functions.h"
+
 #include "routers/api.h"
 
 #define WHITE_FOREGROUND(x) "\033[37m" << (x) << "\033[0m"

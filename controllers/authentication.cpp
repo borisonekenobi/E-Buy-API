@@ -1,9 +1,10 @@
-#include <nlohmann/json.hpp>
-
 #include "authentication.h"
+
+#include <nlohmann/json.hpp>
 
 #include "../authentication-functions.h"
 #include "../utils.h"
+
 #include "../database/client.h"
 
 namespace controllers::authentication
@@ -98,9 +99,11 @@ namespace controllers::authentication
             return res;
         }
 
-        const auto users = database::client::query("SELECT * FROM users WHERE id = $1",
-                                                   {data["id"].get<std::string>()});
-        const auto user = users[0];
+        const auto users = database::client::query(
+            "SELECT * FROM users WHERE id = $1 AND status = 'active'",
+            {data["id"].get<std::string>()}
+        );
+        const auto& user = users[0];
         auto salt = user[4];
         const auto hashed = ::hash(body["password"].get<std::string>(), salt);
         const auto new_hashed = ::hash(body["new_password"].get<std::string>(), salt);
@@ -141,8 +144,10 @@ namespace controllers::authentication
             return res;
         }
 
-        auto users = database::client::query("SELECT * FROM users WHERE username = $1",
-                                             {body["username"].get<std::string>()});
+        const auto users = database::client::query(
+            "SELECT * FROM users WHERE username = $1 AND status = 'active'",
+            {body["username"].get<std::string>()}
+        );
         if (users.empty())
         {
             res.result(http::status::not_found);
@@ -174,8 +179,9 @@ namespace controllers::authentication
             {"type", user[5]},
             {"status", user[6]}
         };
+        nlohmann::json refresh = {{"type", "refresh"}, {"user", response["user"]}};
         response["access"] = generate_access_token(response["user"]);
-        response["refresh"] = generate_refresh_token(response["user"]);
+        response["refresh"] = generate_refresh_token(refresh);
         res.body() = response.dump();
         res.prepare_payload();
         return res;
@@ -193,8 +199,7 @@ namespace controllers::authentication
             return res;
         }
 
-        const auto space_pos = auth_header.find(' ');
-        if (space_pos == string::npos)
+        if (!auth_header.starts_with("Bearer "))
         {
             res.result(http::status::unauthorized);
             res.body() = nlohmann::json::parse(R"({"message": "Invalid authorization header format."})").dump();
@@ -202,8 +207,10 @@ namespace controllers::authentication
             return res;
         }
 
-        const auto data = verify_token(auth_header.substr(space_pos + 1));
-        if (!is_valid_token_data(data))
+        const auto token = auth_header.substr(7);
+        const auto data = verify_token(token);
+        const auto& user = data["user"];
+        if (data.empty() || !data.contains("type") || data["type"] != "refresh" || !is_valid_token_data(user))
         {
             res.result(http::status::unauthorized);
             res.body() = nlohmann::json::parse(R"({"message": "Invalid or expired token."})").dump();
@@ -213,7 +220,7 @@ namespace controllers::authentication
 
         res.result(http::status::ok);
         nlohmann::json response;
-        response["access"] = generate_access_token(data);
+        response["access"] = generate_access_token(user);
         response["refresh"] = generate_refresh_token(data);
         res.body() = response.dump();
         res.prepare_payload();

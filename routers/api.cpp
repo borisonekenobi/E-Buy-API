@@ -19,13 +19,22 @@ namespace routers::api
 		if (req.method() == http::verb::post && req.target() == "/api/renew-tokens")
 			return controllers::authentication::renew_tokens(req, res);
 
-		if (req.method() == http::verb::post && req.target() == "/api/posts")
-			return controllers::post::create_post(req, res);
-		if (req.method() == http::verb::post && req.target().starts_with("/api/posts/"))
-			return controllers::post::buy_post(req, res);
-		if (req.method() == http::verb::get && req.target().starts_with("/api/posts/"))
-			return controllers::post::get_post(req, res);
+		if (req.method() == http::verb::post && req.target().starts_with("/api/posts/buy/"))
+			return controllers::post::buy(req, res);
 
+		if (req.method() == http::verb::post && req.target().starts_with("/api/posts/bid/"))
+			return controllers::post::bid(req, res);
+
+		if (req.method() == http::verb::post && req.target() == "/api/posts")
+			return controllers::post::create(req, res);
+		if (req.method() == http::verb::get && req.target() == "/api/posts")
+			return controllers::post::find(req, res);
+		if (req.method() == http::verb::get && req.target().starts_with("/api/posts/"))
+			return controllers::post::find_one(req, res);
+		if (req.method() == http::verb::put && req.target().starts_with("/api/posts/"))
+			return controllers::post::update(req, res);
+		if (req.method() == http::verb::delete_ && req.target().starts_with("/api/posts/"))
+			return controllers::post::delete_(req, res);
 
 		return http::response<http::string_body>{http::status::not_found, req.version()};
 	}

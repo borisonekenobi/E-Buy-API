@@ -1,7 +1,8 @@
+#include "client.h"
+
 #include <format>
 #include <iostream>
-
-#include "client.h"
+#include <sqlite3.h>
 
 using namespace std;
 

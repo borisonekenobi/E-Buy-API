@@ -1,7 +1,8 @@
-#include <boost/uuid/string_generator.hpp>
-#include <nlohmann/json.hpp>
-
 #include "utils.h"
+
+#include <boost/uuid/string_generator.hpp>
+
+#include <nlohmann/json.hpp>
 
 using namespace std;
 
