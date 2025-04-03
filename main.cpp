@@ -145,7 +145,8 @@ int main()
 		auto listener = std::make_shared<Listener>(ioc, tcp::endpoint{address, port});
 
 		const int num_threads = std::max(1u, std::thread::hardware_concurrency());
-        std::vector<std::thread> threads(num_threads);
+		std::vector<std::thread> threads;
+
 
 		std::cout << "Starting server with " << num_threads << " threads..." << std::endl;
 
