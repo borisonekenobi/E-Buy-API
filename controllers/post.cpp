@@ -317,8 +317,8 @@ http::response<http::string_body> bid_post(http::request<http::string_body> cons
         const auto post_result = database::client::query("SELECT user_id FROM posts WHERE id = $1;", {post_id});
         if (post_result.empty())
         {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
+            res.result(http::status::not_found);
+            res.body() = R"({"message": "Not Found"})";
             res.prepare_payload();
             return res;
         }
