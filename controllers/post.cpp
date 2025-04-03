@@ -210,10 +210,10 @@ namespace controllers::post
                 response["transaction"] = nlohmann::json();
             else
                 response["transaction"] = {
-                {"id", transactions[0][TRANSACTION_ID_INDEX]},
-                {"user_id", transactions[0][TRANSACTION_USER_ID_INDEX]},
-                {"price", transactions[0][TRANSACTION_PRICE_INDEX]},
-            };
+                    {"id", transactions[0][TRANSACTION_ID_INDEX]},
+                    {"user_id", transactions[0][TRANSACTION_USER_ID_INDEX]},
+                    {"price", transactions[0][TRANSACTION_PRICE_INDEX]},
+                };
         }
         else
         {
@@ -249,7 +249,7 @@ namespace controllers::post
     }
 
     http::response<http::string_body> update(http::request<http::string_body> const& req,
-                                           http::response<http::string_body>& res)
+                                             http::response<http::string_body>& res)
     {
         const auto auth_header = req[http::field::authorization];
         if (auth_header.empty())
@@ -304,7 +304,9 @@ namespace controllers::post
         const double price = body["price"].get<double>();
         const string type = body["type"].get<string>();
 
-        const auto result = database::client::query(
+        try
+        {
+            const auto result = database::client::query(
                 "UPDATE posts SET title = $1, description = $2, price = $3, type = $4 WHERE id = $5 AND user_id = $6;",
                 {title, description, to_string(price), type, to_string(uuid), user_id}
             );
