@@ -61,6 +61,13 @@ static http::response<http::string_body> handle_request(http::request<http::stri
 {
 	try
 	{
+		if (req.method() == http::verb::options)
+		{
+			res.result(http::status::no_content);
+			res.prepare_payload();
+			return res;
+		}
+		
 		const auto now = chrono::system_clock::now();
 
 		if (req.target().starts_with("/api")) res = routers::api::handle_request(req, res);
@@ -107,6 +114,8 @@ private:
 				res.set(http::field::server, "Beast");
 				res.set(http::field::content_type, "application/json");
 				res.set(http::field::access_control_allow_origin, "*");
+				res.set(http::field::access_control_allow_methods, "GET, POST, PUT, DELETE, OPTIONS");
+				res.set(http::field::access_control_allow_headers, "Content-Type, Authorization");
 				res.keep_alive(req_.keep_alive());
 
 				do_write(handle_request(req_, res));
