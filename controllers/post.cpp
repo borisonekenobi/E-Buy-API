@@ -173,8 +173,7 @@ http::response<http::string_body> bid_post(http::request<http::string_body> cons
         res.prepare_payload();
         return res;
     }
-    int balance = stod(user_balance_result[0][0]);
-
+    int balance = stoi(user_balance_result[0][0]);
     if (balance < new_price)
     {
         res.result(http::status::bad_request);
