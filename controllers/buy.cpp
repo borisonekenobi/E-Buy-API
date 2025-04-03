@@ -116,7 +116,7 @@ namespace controllers::post
             {"status", "sold"},
             {"transaction", {
                 {"id", to_string(gen_uuid())},
-                {"user_id", data["id"]},
+                {"user_id", data["id"].get<string>()},
                 {"price", post[4]},
             }}
         };

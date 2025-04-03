@@ -52,11 +52,11 @@ namespace controllers::post
         }
 
         const string uuid = to_string(gen_uuid());
-        const string user_id = to_string(data["id"]);
-        const string title = to_string(body["title"]);
-        const string description = to_string(body["description"]);
-        const string price = to_string(body["price"]);
-        const string type = body["type"];
+        const string user_id = data["id"].get<string>();
+        const string title = body["title"].get<string>();
+        const string description = body["description"].get<string>();
+        const string price = body["price"].get<string>();
+        const string type = body["type"].get<string>();
         const string status = "active";
 
         const auto result = database::client::query(
