@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "../authentication-functions.h"
 #include "../utils.h"
 
 #include "../database/client.h"
@@ -13,34 +14,67 @@ namespace controllers::post
     http::response<http::string_body> create(http::request<http::string_body> const& req,
                                              http::response<http::string_body>& res)
     {
-        nlohmann::json request_body = nlohmann::json::parse(req.body());
-        const string user_id = request_body["user_id"];
-        const string title = request_body["title"];
-        const string description = request_body["description"];
-        const string price = request_body["price"];
-        const string type = request_body["type"];
-        const string status = "active";
-
-        const auto uuid = to_string(gen_uuid());
-
-        // Insert new post into the posts table
-        const auto result = database::client::query(
-            "INSERT INTO posts (id, user_id, title, description, price, type, status) VALUES ($1, $2, $3, $4, $5, $6)",
-            {uuid, user_id, title, description, price, type, status}
-        );
-
-        if (result.empty())
+        const auto auth_header = req[http::field::authorization];
+        if (auth_header.empty())
         {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Authorization header is missing."})").dump();
             res.prepare_payload();
             return res;
         }
 
+        const auto space_pos = auth_header.find(' ');
+        if (space_pos == string::npos)
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid authorization header format."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const auto data = verify_token(auth_header.substr(space_pos + 1));
+        if (!is_valid_token_data(data))
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid or expired token."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        auto body = nlohmann::json::parse(req.body());
+        if (!body.contains("title") || !body.contains("description") || !body.contains("price") ||
+            !body.contains("type"))
+        {
+            res.result(http::status::bad_request);
+            res.body() = nlohmann::json::parse(R"({"message": "Missing required fields."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const string uuid = to_string(gen_uuid());
+        const string user_id = data["id"];
+        const string title = body["title"];
+        const string description = body["description"];
+        const string price = body["price"];
+        const string type = body["type"];
+        const string status = "active";
+
+        const auto result = database::client::query(
+            "INSERT INTO posts (id, user_id, title, description, price, type, status) VALUES ($1, $2, $3, $4, $5, $6, $7);",
+            {uuid, user_id, title, description, price, type, status}
+        );
+
         nlohmann::json response;
         response["message"] = "Post created successfully";
-        response["post_id"] = result[0][0];
-
+        response["post"] = {
+            {"id", uuid},
+            {"user_id", user_id},
+            {"title", title},
+            {"description", description},
+            {"price", price},
+            {"type", type},
+            {"status", status}
+        };
         res.result(http::status::created);
         res.body() = response.dump();
         res.prepare_payload();
@@ -50,94 +84,34 @@ namespace controllers::post
     http::response<http::string_body> find(http::request<http::string_body> const& req,
                                            http::response<http::string_body>& res)
     {
-        res.result(http::status::not_implemented);
-        res.body() = R"({"message": "Not Implemented"})";
+        const auto posts = database::client::query(
+            "SELECT * FROM posts WHERE status = 'active' ORDER BY random() LIMIT 10;",
+            {}
+        );
+
+        if (posts.empty())
+        {
+            res.result(http::status::not_found);
+            res.body() = nlohmann::json::parse(R"({"message": "No posts found"})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        auto response = nlohmann::json::array();
+        for (const auto& post : posts)
+            response.push_back({
+                {"id", post[0]},
+                {"user_id", post[1]},
+                {"title", post[2]},
+                {"description", post[3]},
+                {"price", post[4]},
+                {"type", post[5]},
+                {"status", post[6]},
+            });
+        res.result(http::status::ok);
+        res.body() = response.dump();
         res.prepare_payload();
         return res;
-    }
-
-    http::response<http::string_body> buy_post(http::request<http::string_body> const& req,
-                                               http::response<http::string_body>& res)
-    {
-        nlohmann::json request_body = nlohmann::json::parse(req.body());
-        const string user_id = request_body["user_id"];
-        const string post_id = request_body["post_id"];
-
-        // Retrieve post status
-        const auto post_status_result = database::client::query("SELECT status FROM posts WHERE id = $1;", {post_id});
-        if (post_status_result.empty())
-        {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
-        }
-        string status = post_status_result[0][0];
-        if (status == "inactive" || status == "sold")
-        {
-            res.result(http::status::bad_request);
-            res.body() = R"({"message": "Post is not available for purchase"})";
-            res.prepare_payload();
-            return res;
-        }
-
-        // Retrieve user balance
-        const auto user_balance_result = database::client::query("SELECT balance FROM users WHERE id = $1;", {user_id});
-        if (user_balance_result.empty())
-        {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
-        }
-        int balance = stod(user_balance_result[0][0]);
-
-        // Retrieve post price
-        const auto post_price_result = database::client::query("SELECT price FROM posts WHERE id = $1;", {post_id});
-        if (post_price_result.empty())
-        {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
-        }
-        int price = stod(post_price_result[0][0]);
-
-        // Update user balance
-        balance -= price;
-
-        if (balance < 0)
-        {
-            res.result(http::status::bad_request);
-            res.body() = R"({"message": "Insufficient balance"})";
-            res.prepare_payload();
-            return res;
-        }
-        else
-        {
-            if (database::client::query("UPDATE users SET balance = $1 WHERE id = $2;", {to_string(balance), user_id}).
-                empty())
-            {
-                res.result(http::status::internal_server_error);
-                res.body() = R"({"message": "Internal Server Error"})";
-                res.prepare_payload();
-                return res;
-            }
-
-            // Update post status
-            if (database::client::query("UPDATE posts SET status = 'sold' WHERE id = $1;", {post_id}).empty())
-            {
-                res.result(http::status::internal_server_error);
-                res.body() = R"({"message": "Internal Server Error"})";
-                res.prepare_payload();
-                return res;
-            }
-
-            res.result(http::status::created);
-            res.body() = R"({"message": "Post purchased successfully"})";
-            res.prepare_payload();
-            return res;
-        }
     }
 
     http::response<http::string_body> find_one(http::request<http::string_body> const& req,
@@ -162,7 +136,7 @@ namespace controllers::post
             return res;
         }
 
-        const auto post = database::client::query("SELECT * FROM posts WHERE id = $1;", {post_id});
+        const auto post = database::client::query("SELECT * FROM posts WHERE id = $1;", {to_string(uuid)})[0];
         if (post.empty())
         {
             res.result(http::status::not_found);
@@ -171,36 +145,44 @@ namespace controllers::post
             return res;
         }
 
-        nlohmann::json response;
-        response["post"] =
-        {
-            {"id", post[0][0]},
-            {"user_id", post[0][1]},
-            {"title", post[0][2]},
-            {"description", post[0][3]},
-            {"price", post[0][4]},
-            {"type", post[0][5]},
-            {"status", post[0][6]},
+        nlohmann::json response = {
+            {"id", post[0]},
+            {"user_id", post[1]},
+            {"title", post[2]},
+            {"description", post[3]},
+            {"price", post[4]},
+            {"type", post[5]},
+            {"status", post[6]},
         };
 
-        const string post_type = response["post"]["type"];
-        vector<vector<string>> post_data;
-        if (post_type == "sale")
+        if (response["type"] == "sale")
         {
-            post_data = database::client::query("SELECT * FROM transactions WHERE post_id = $1;", {post_id});
-            response["post"]["transactions"] = nlohmann::json::array();
-            for (const auto& transaction : post_data)
-            {
-                response["post"]["transactions"].push_back({
-                    {"id", transaction[0]},
-                    {"user_id", transaction[1]},
-                    {"price", transaction[3]},
-                });
-            }
+            const auto transactions = database::client::query(
+                "SELECT * FROM transactions WHERE post_id = $1;",
+                {post_id}
+            );
+            if (transactions.empty())
+                response["transaction"] = nlohmann::json();
+            else
+                response["transaction"] = {
+                {"id", transactions[0][0]},
+                {"user_id", transactions[0][1]},
+                {"price", transactions[0][3]},
+            };
         }
         else
         {
-            // response["post"]["bids"] = bid::get_bids_by_post_id(post_id);
+            const auto bids = database::client::query(
+                "SELECT * FROM bids WHERE post_id = $1 ORDER BY price DESC;",
+                {post_id}
+            );
+            response["bids"] = nlohmann::json::array();
+            for (const auto& bid : bids)
+                response["bids"].push_back({
+                    {"id", bid[0]},
+                    {"user_id", bid[1]},
+                    {"price", bid[3]},
+                });
         }
 
         res.result(http::status::ok);
@@ -209,57 +191,69 @@ namespace controllers::post
         return res;
     }
 
-    http::response<http::string_body> edit(http::request<http::string_body> const& req,
+    http::response<http::string_body> update(http::request<http::string_body> const& req,
                                            http::response<http::string_body>& res)
     {
-        nlohmann::json request_body = nlohmann::json::parse(req.body());
-        const string post_id = request_body["post_id"];
-        // Assuming the logged-in user ID is stored in the request
-        const string logged_in_user_id = req["user_id"];
+        const auto auth_header = req[http::field::authorization];
+        if (auth_header.empty())
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Authorization header is missing."})").dump();
+            res.prepare_payload();
+            return res;
+        }
 
-        // Validate post ID
+        const auto space_pos = auth_header.find(' ');
+        if (space_pos == string::npos)
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid authorization header format."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const auto data = verify_token(auth_header.substr(space_pos + 1));
+        if (!is_valid_token_data(data))
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid or expired token."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const string post_id = req.target().substr(11);
         boost::uuids::uuid uuid;
         if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4)
         {
             res.result(http::status::bad_request);
-            res.body() = R"({"message": "Invalid Post ID format"})";
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
             res.prepare_payload();
             return res;
         }
 
-        // Retrieve post user_id
-        const auto post_result = database::client::query("SELECT user_id FROM posts WHERE id = $1;", {post_id});
-        if (post_result.empty())
+        auto body = nlohmann::json::parse(req.body());
+        if (!body.contains("title") || !body.contains("description") || !body.contains("price") ||
+            !body.contains("type"))
         {
-            res.result(http::status::not_found);
-            res.body() = R"({"message": "Not Found"})";
-            res.prepare_payload();
-            return res;
-        }
-        string post_user_id = post_result[0][0];
-
-        // Check if the logged-in user is the same as the post user_id
-        if (logged_in_user_id != post_user_id)
-        {
-            res.result(http::status::forbidden);
-            res.body() = R"({"message": "You are not authorized to change this post"})";
+            res.result(http::status::bad_request);
+            res.body() = nlohmann::json::parse(R"({"message": "Missing required fields."})").dump();
             res.prepare_payload();
             return res;
         }
 
-        // Update post status to inactive
-        const auto result = database::client::query("UPDATE posts SET status = 'inactive' WHERE id = $1;", {post_id});
-        if (result.empty())
-        {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
-        }
+        const string user_id = data["id"];
+        const string title = body["title"];
+        const string description = body["description"];
+        const string price = body["price"];
+        const string type = body["type"];
+
+        const auto result = database::client::query(
+            "UPDATE posts SET title = $1, description = $2, price = $3, type = $4 WHERE id = $5 AND user_id = $6;",
+            {title, description, price, type, to_string(uuid), user_id}
+        );
 
         nlohmann::json response;
-        response["message"] = "Post status updated to inactive";
-
+        response["message"] = "Post updated successfully";
         res.result(http::status::ok);
         res.body() = response.dump();
         res.prepare_payload();
@@ -269,8 +263,52 @@ namespace controllers::post
     http::response<http::string_body> delete_(http::request<http::string_body> const& req,
                                               http::response<http::string_body>& res)
     {
-        res.result(http::status::not_implemented);
-        res.body() = R"({"message": "Not Implemented"})";
+        const auto auth_header = req[http::field::authorization];
+        if (auth_header.empty())
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Authorization header is missing."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const auto space_pos = auth_header.find(' ');
+        if (space_pos == string::npos)
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid authorization header format."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const auto data = verify_token(auth_header.substr(space_pos + 1));
+        if (!is_valid_token_data(data))
+        {
+            res.result(http::status::unauthorized);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid or expired token."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const string post_id = req.target().substr(11);
+        boost::uuids::uuid uuid;
+        if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4)
+        {
+            res.result(http::status::bad_request);
+            res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
+        const auto result = database::client::query(
+            "UPDATE posts SET status = 'inactive' WHERE id = $1 AND user_id = $2;",
+            {to_string(uuid), data["id"]}
+        );
+
+        nlohmann::json response;
+        response["message"] = "Post deleted successfully";
+        res.result(http::status::ok);
+        res.body() = response.dump();
         res.prepare_payload();
         return res;
     }

@@ -12,7 +12,7 @@ namespace controllers::post
                                            http::response<http::string_body>& res);
     http::response<http::string_body> find_one(http::request<http::string_body> const& req,
                                                http::response<http::string_body>& res);
-    http::response<http::string_body> edit(http::request<http::string_body> const& req,
+    http::response<http::string_body> update(http::request<http::string_body> const& req,
                                            http::response<http::string_body>& res);
     http::response<http::string_body> delete_(http::request<http::string_body> const& req,
                                               http::response<http::string_body>& res);

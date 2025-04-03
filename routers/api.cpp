@@ -32,7 +32,7 @@ namespace routers::api
 		if (req.method() == http::verb::get && req.target().starts_with("/api/posts/"))
 			return controllers::post::find_one(req, res);
 		if (req.method() == http::verb::put && req.target().starts_with("/api/posts/"))
-			return controllers::post::edit(req, res);
+			return controllers::post::update(req, res);
 		if (req.method() == http::verb::delete_ && req.target().starts_with("/api/posts/"))
 			return controllers::post::delete_(req, res);
 
