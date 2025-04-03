@@ -78,26 +78,38 @@ namespace controllers::post
             // TODO: Use a mutex or a lock to ensure thread safety
 
             // TODO: transaction doesn't begin?
-            database::client::query("BEGIN TRANSACTION;", {});
+            sqlite3* db = database::client::open_connection();
+            database::client::transactional_query(db, "BEGIN TRANSACTION;", {});
 
-            database::client::query(
+            database::client::transactional_query(
+                db,
                 "INSERT INTO transactions (id, user_id, post_id, price) VALUES ($1, $2, $3, $4);",
-                {to_string(gen_uuid()), data["id"], to_string(uuid), post[4]}
+                {to_string(gen_uuid()), data["id"], to_string(uuid), post[POST_PRICE_INDEX]}
             );
 
-            database::client::query(
+            database::client::transactional_query(
+                db,
                 "UPDATE posts SET status = 'sold' WHERE id = $1;",
                 {to_string(uuid)}
             );
 
             // TODO: throws error because of the transaction
-            database::client::query("COMMIT TRANSACTION;", {});
+            database::client::transactional_query(db, "COMMIT TRANSACTION;", {});
+
+            database::client::close_connection(db);
             /*** END CRITICAL SECTION ***/
         }
         catch (const exception& e)
         {
             cerr << e.what() << endl;
-            database::client::query("ROLLBACK TRANSACTION;", {});
+
+            // Try to roll back (safe fallback)
+            try {
+                sqlite3* db = database::client::open_connection();
+                database::client::transactional_query(db, "ROLLBACK TRANSACTION;", {});
+                database::client::close_connection(db);
+            } catch (...) {}
+
             res.result(http::status::internal_server_error);
             res.body() = R"({"message": "Internal Server Error"})";
             res.prepare_payload();
