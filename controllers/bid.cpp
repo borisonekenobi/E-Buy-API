@@ -53,6 +53,15 @@ namespace controllers::post
             return res;
         }
 
+        const auto body = nlohmann::json::parse(req.body());
+        if (!body.contains("price"))
+        {
+            res.result(http::status::bad_request);
+            res.body() = nlohmann::json::parse(R"({"message": "Missing required fields."})").dump();
+            res.prepare_payload();
+            return res;
+        }
+
         const auto results = database::client::query(
             "SELECT * FROM posts WHERE id = $1 AND status = 'active';",
             {to_string(uuid)}
@@ -66,48 +75,26 @@ namespace controllers::post
         }
 
         const auto post = results[0];
-        if (post[5] != "sale")
+        if (post[5] != "auction")
         {
             res.result(http::status::forbidden);
-            res.body() = nlohmann::json::parse(R"({"message": "This post is not for sale."})").dump();
+            res.body() = nlohmann::json::parse(R"({"message": "Post is not an auction."})").dump();
             res.prepare_payload();
             return res;
         }
 
-        try
-        {
-            /*** CRITICAL SECTION ***/
-            // TODO: Use a mutex or a lock to ensure thread safety
+        database::client::query(
+            "INSERT INTO bids (id, user_id, post_id, price) VALUES ($1, $2, $3, $4);",
+            {to_string(gen_uuid()), data["id"], to_string(uuid), body["price"]}
+        );
 
-            // TODO: transaction doesn't begin?
-            database::client::query("BEGIN TRANSACTION;", {});
-
-            database::client::query(
-                "INSERT INTO transactions (id, user_id, post_id, price) VALUES ($1, $2, $3, $4);",
-                {to_string(gen_uuid()), data["id"], to_string(uuid), post[4]}
-            );
-
-            database::client::query(
-                "UPDATE posts SET status = 'sold' WHERE id = $1;",
-                {to_string(uuid)}
-            );
-
-            // TODO: throws error because of the transaction
-            database::client::query("COMMIT TRANSACTION;", {});
-            /*** END CRITICAL SECTION ***/
-        }
-        catch (const exception& e)
-        {
-            cerr << e.what() << endl;
-            database::client::query("ROLLBACK TRANSACTION;", {});
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
-        }
+        const auto bids = database::client::query(
+            "SELECT * FROM bids WHERE post_id = $1 ORDER BY price DESC;",
+            {to_string(uuid)}
+        );
 
         nlohmann::json response;
-        response["message"] = "Post bought successfully";
+        response["message"] = "Bid placed successfully";
         response["post"] = {
             {"id", post[0]},
             {"user_id", post[1]},
@@ -115,8 +102,15 @@ namespace controllers::post
             {"description", post[3]},
             {"price", post[4]},
             {"type", post[5]},
-            {"status", "sold"}
+            {"status", post[6]},
+            {"bids", nlohmann::json::array()}
         };
+        for (const auto& bid : bids)
+            response["post"]["bids"].push_back({
+                {"id", bid[0]},
+                {"user_id", bid[1]},
+                {"price", bid[3]},
+            });
         res.result(http::status::ok);
         res.body() = response.dump();
         res.prepare_payload();
