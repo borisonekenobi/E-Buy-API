@@ -164,21 +164,26 @@ http::response<http::string_body> bid_post(http::request<http::string_body> cons
         return res;
     }
 
-    const auto uuid = to_string(gen_uuid());
-
-    // Record the transaction
-    const auto transaction_result = database::client::query(
-        "INSERT INTO transactions (id, user_id, post_id, price) VALUES ($1, $2, $3, $4) RETURNING id;",
-        {uuid, user_id, post_id, to_string(new_price)}
-    );
-
-    if (transaction_result.empty())
+    // Retrieve user balance
+    const auto user_balance_result = database::client::query("SELECT balance FROM users WHERE id = $1;", {user_id});
+    if (user_balance_result.empty())
     {
         res.result(http::status::internal_server_error);
         res.body() = R"({"message": "Internal Server Error"})";
         res.prepare_payload();
         return res;
     }
+    int balance = stod(user_balance_result[0][0]);
+
+    if (balance < new_price)
+    {
+        res.result(http::status::bad_request);
+        res.body() = R"({"message": "Insufficient balance"})";
+        res.prepare_payload();
+        return res;
+    }
+
+    const auto uuid = to_string(gen_uuid());
 
     // Update post with the current bidded price
     if (database::client::query("UPDATE posts SET price = $1 WHERE id = $2;", {to_string(new_price), post_id}).empty())
@@ -189,9 +194,23 @@ http::response<http::string_body> bid_post(http::request<http::string_body> cons
         return res;
     }
 
+    // Insert new bid into the bids table
+    const auto bid_result = database::client::query(
+        "INSERT INTO bids (id, user_id, post_id, price) VALUES ($1, $2, $3, $4) RETURNING id;",
+        {uuid, user_id, post_id, to_string(new_price)}
+    );
+
+    if (bid_result.empty())
+    {
+        res.result(http::status::internal_server_error);
+        res.body() = R"({"message": "Internal Server Error"})";
+        res.prepare_payload();
+        return res;
+    }
+
     nlohmann::json response;
     response["message"] = "Bid placed successfully";
-    response["transaction_id"] = transaction_result[0][0];
+    response["bid_id"] = bid_result[0][0];
 
     res.result(http::status::created);
     res.body() = response.dump();
