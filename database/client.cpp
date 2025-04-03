@@ -64,4 +64,26 @@ namespace database::client
 
         return query_results;
     }
+
+
+    //transactions
+
+    sqlite3* open_connection() {
+        sqlite3* db;
+        if (sqlite3_open("database.db", &db)) {
+            cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
+            exit(EXIT_FAILURE);
+        }
+        return db;
+    }
+
+    void close_connection(sqlite3* db) {
+        sqlite3_close(db);
+    }
+
+    vector<vector<string>> transactional_query(sqlite3* db, const string& query, const vector<string>& params) {
+        const string prepared_query = prepare_query(query, params);
+        return executeQuery(db, prepared_query);
+    }
+
 }
