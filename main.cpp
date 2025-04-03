@@ -1,21 +1,13 @@
 #include <iostream>
 #include <memory>
 #include <string>
-
 #include <boost/asio/strand.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 
 #include "authentication-functions.h"
-
 #include "routers/api.h"
-
-#define WHITE_FOREGROUND(x) "\033[37m" << (x) << "\033[0m"
-#define GREEN_FOREGROUND(x) "\033[32m" << (x) << "\033[0m"
-#define CYAN_FOREGROUND(x) "\033[36m" << (x) << "\033[0m"
-#define YELLOW_FOREGROUND(x) "\033[33m" << (x) << "\033[0m"
-#define RED_FOREGROUND(x) "\033[31m" << (x) << "\033[0m"
 
 using namespace std;
 
@@ -24,69 +16,14 @@ namespace http = beast::http;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
-static void print_status(http::request<http::string_body> const& req,
-                         http::response<http::string_body>& res,
-                         const long long elapsed)
-{
-	const auto method = req.method_string();
-	const auto target = req.target();
-	const auto status_code = res.result_int();
-	const auto payload_size = res.body().empty() ? "-" : to_string(res.body().size());
-
-	cout << method << " " << target << " ";
-
-	switch (status_code / 100)
-	{
-	case 1:
-		cout << WHITE_FOREGROUND(status_code);
-		break;
-	case 2:
-		cout << GREEN_FOREGROUND(status_code);
-		break;
-	case 3:
-		cout << CYAN_FOREGROUND(status_code);
-		break;
-	case 4:
-		cout << YELLOW_FOREGROUND(status_code);
-		break;
-	case 5:
-	default:
-		cout << RED_FOREGROUND(status_code);
-		break;
-	}
-
-	cout << " " << elapsed << " ms - " << payload_size << endl;
-}
-
 static http::response<http::string_body> handle_request(http::request<http::string_body> const& req,
                                                         http::response<http::string_body>& res)
 {
-	try
-	{
-		if (req.method() == http::verb::options)
-		{
-			res.result(http::status::no_content);
-			res.prepare_payload();
-			return res;
-		}
-		
-		const auto now = chrono::system_clock::now();
+	cout << http::to_string(req.method()) << " " << req.target() << endl;
 
-		if (req.target().starts_with("/api")) res = routers::api::handle_request(req, res);
+	if (req.target().starts_with("/api")) return routers::api::handle_request(req, res);
 
-		const auto elapsed = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - now).count();
-		print_status(req, res, elapsed);
-		return res;
-	}
-	catch (const exception& e)
-	{
-		cerr << "Error: " << e.what() << endl;
-		res.result(http::status::internal_server_error);
-		res.body() = R"({"message": "Internal Server Error"})";
-		res.prepare_payload();
-		print_status(req, res, 0);
-		return res;
-	}
+	return http::response<http::string_body>{http::status::not_found, req.version()};
 }
 
 class Session : public enable_shared_from_this<Session>
@@ -108,6 +45,7 @@ public:
 private:
 	void do_read()
 	{
+
 		async_read(socket_, buffer_, req_, [this, self(shared_from_this())](const beast::error_code& ec, size_t)
 		{
 			if (!ec)
@@ -116,8 +54,6 @@ private:
 				res.set(http::field::server, "Beast");
 				res.set(http::field::content_type, "application/json");
 				res.set(http::field::access_control_allow_origin, "*");
-				res.set(http::field::access_control_allow_methods, "GET, POST, PUT, DELETE, OPTIONS");
-				res.set(http::field::access_control_allow_headers, "Content-Type, Authorization");
 				res.keep_alive(req_.keep_alive());
 
 				do_write(handle_request(req_, res));
@@ -199,17 +135,37 @@ int main()
 {
 	try
 	{
-		initialize_auth();
+		AuthenticationFunctions::init();
 
 		auto const address = net::ip::make_address("0.0.0.0");
 		constexpr unsigned short port = 3000;
 
-		net::io_context ioc{1};
+		net::io_context ioc;
 
-		const auto test = make_shared<Listener>(ioc, tcp::endpoint{address, port});
+		auto listener = std::make_shared<Listener>(ioc, tcp::endpoint{address, port});
+
+		const int num_threads = std::max(1u, std::thread::hardware_concurrency());
+        std::vector<std::thread> threads(num_threads);
+
+		std::cout << "Starting server with " << num_threads << " threads..." << std::endl;
+
+		for (int i = 0; i < num_threads; ++i)
+		{
+			threads.emplace_back([&ioc]() {
+				ioc.run();
+			});
+		}
+
+		for (auto& t : threads)
+		{
+			if (t.joinable())
+				t.join();
+		}
+
+
 		//test->run(); // This doesn't work even though it's in the example code
 
-		ioc.run();
+
 	}
 	catch (const exception& e)
 	{
