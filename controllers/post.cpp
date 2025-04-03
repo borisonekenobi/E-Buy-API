@@ -294,4 +294,60 @@ http::response<http::string_body> bid_post(http::request<http::string_body> cons
         res.prepare_payload();
         return res;
     }
+
+    http::response<http::string_body> change_post(http::request<http::string_body> const &req,
+                                                  http::response<http::string_body> &res)
+    {
+        nlohmann::json request_body = nlohmann::json::parse(req.body());
+        const string post_id = request_body["post_id"];
+        const string logged_in_user_id = req["user_id"]; // Assuming the logged-in user ID is stored in the request
+
+        // Validate post ID
+        boost::uuids::uuid uuid;
+        if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4)
+        {
+            res.result(http::status::bad_request);
+            res.body() = R"({"message": "Invalid Post ID format"})";
+            res.prepare_payload();
+            return res;
+        }
+
+        // Retrieve post user_id
+        const auto post_result = database::client::query("SELECT user_id FROM posts WHERE id = $1;", {post_id});
+        if (post_result.empty())
+        {
+            res.result(http::status::internal_server_error);
+            res.body() = R"({"message": "Internal Server Error"})";
+            res.prepare_payload();
+            return res;
+        }
+        string post_user_id = post_result[0][0];
+
+        // Check if the logged-in user is the same as the post user_id
+        if (logged_in_user_id != post_user_id)
+        {
+            res.result(http::status::forbidden);
+            res.body() = R"({"message": "You are not authorized to change this post"})";
+            res.prepare_payload();
+            return res;
+        }
+
+        // Update post status to inactive
+        const auto result = database::client::query("UPDATE posts SET status = 'inactive' WHERE id = $1;", {post_id});
+        if (result.empty())
+        {
+            res.result(http::status::internal_server_error);
+            res.body() = R"({"message": "Internal Server Error"})";
+            res.prepare_payload();
+            return res;
+        }
+
+        nlohmann::json response;
+        response["message"] = "Post status updated to inactive";
+
+        res.result(http::status::ok);
+        res.body() = response.dump();
+        res.prepare_payload();
+        return res;
+    }
 }
