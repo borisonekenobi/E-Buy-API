@@ -103,7 +103,7 @@ namespace controllers::bid {
 
         if (post_id.empty()) {
             res.result(http::status::bad_request);
-            res.body() = nlohmann::json::parse(R"({"message": Post ID is missing"})").dump();
+            res.body() = nlohmann::json::parse(R"({"message": "Post ID is missing"})").dump();
             res.prepare_payload();
             return res;
         }
