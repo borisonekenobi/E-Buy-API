@@ -3,6 +3,7 @@
 
 #include "post.h"
 #include "../utils.h"
+#include "bid.h"
 #include "../database/client.h"
 
 using namespace std;
@@ -128,94 +129,6 @@ http::response<http::string_body> buy_post(http::request<http::string_body> cons
     }
 }
 
-http::response<http::string_body> bid_post(http::request<http::string_body> const &req,
-                                           http::response<http::string_body> &res)
-{
-    nlohmann::json request_body = nlohmann::json::parse(req.body());
-    const string user_id = request_body["user_id"];
-    const string post_id = request_body["post_id"];
-    const int new_price = request_body["price"];
-
-    // Retrieve post status and current price
-    const auto post_result = database::client::query("SELECT status, price FROM posts WHERE id = $1;", {post_id});
-    if (post_result.empty())
-    {
-        res.result(http::status::internal_server_error);
-        res.body() = R"({"message": "Internal Server Error"})";
-        res.prepare_payload();
-        return res;
-    }
-    string status = post_result[0][0];
-    double current_price = stod(post_result[0][1]);
-
-    if (status == "inactive" || status == "sold")
-    {
-        res.result(http::status::bad_request);
-        res.body() = R"({"message": "Post is not available for bidding"})";
-        res.prepare_payload();
-        return res;
-    }
-
-    if (new_price <= current_price)
-    {
-        res.result(http::status::bad_request);
-        res.body() = R"({"message": "Bid price must be larger than the current price"})";
-        res.prepare_payload();
-        return res;
-    }
-
-    // Retrieve user balance
-    const auto user_balance_result = database::client::query("SELECT balance FROM users WHERE id = $1;", {user_id});
-    if (user_balance_result.empty())
-    {
-        res.result(http::status::internal_server_error);
-        res.body() = R"({"message": "Internal Server Error"})";
-        res.prepare_payload();
-        return res;
-    }
-    int balance = stoi(user_balance_result[0][0]);
-    if (balance < new_price)
-    {
-        res.result(http::status::bad_request);
-        res.body() = R"({"message": "Insufficient balance"})";
-        res.prepare_payload();
-        return res;
-    }
-
-    const auto uuid = to_string(gen_uuid());
-
-    // Update post with the current bidded price
-    if (database::client::query("UPDATE posts SET price = $1 WHERE id = $2;", {to_string(new_price), post_id}).empty())
-    {
-        res.result(http::status::internal_server_error);
-        res.body() = R"({"message": "Internal Server Error"})";
-        res.prepare_payload();
-        return res;
-    }
-
-    // Insert new bid into the bids table
-    const auto bid_result = database::client::query(
-        "INSERT INTO bids (id, user_id, post_id, price) VALUES ($1, $2, $3, $4) RETURNING id;",
-        {uuid, user_id, post_id, to_string(new_price)}
-    );
-
-    if (bid_result.empty())
-    {
-        res.result(http::status::internal_server_error);
-        res.body() = R"({"message": "Internal Server Error"})";
-        res.prepare_payload();
-        return res;
-    }
-
-    nlohmann::json response;
-    response["message"] = "Bid placed successfully";
-    response["bid_id"] = bid_result[0][0];
-
-    res.result(http::status::created);
-    res.body() = response.dump();
-    res.prepare_payload();
-    return res;
-}
 
     http::response<http::string_body> get_post(http::request<http::string_body> const &req,
                                                http::response<http::string_body> &res)
@@ -276,16 +189,7 @@ http::response<http::string_body> bid_post(http::request<http::string_body> cons
             }
         } else
             {
-            post_data = database::client::query("SELECT * FROM bids WHERE post_id = $1;", {post_id});
-            response["post"]["bids"] = nlohmann::json::array();
-            for (const auto &bid: post_data)
-                {
-                response["post"]["bids"].push_back({
-                    {"id", bid[0]},
-                    {"user_id", bid[1]},
-                    {"price", bid[3]},
-                });
-            }
+            response["post"]["bids"] = bid::get_bids_by_post_id(post_id);
         }
 
         res.result(http::status::ok);

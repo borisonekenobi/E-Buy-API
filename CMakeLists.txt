@@ -26,9 +26,12 @@ set(SOURCE
         controllers/authentication.h
         controllers/post.cpp
         controllers/post.h
+        controllers/bid.cpp
+        controllers/bid.h
 
         database/client.cpp
         database/client.h
+
 )
 
 add_executable(E-Buy-API ${SOURCE})
