@@ -164,21 +164,25 @@ http::response<http::string_body> bid_post(http::request<http::string_body> cons
         return res;
     }
 
-    const auto uuid = to_string(gen_uuid());
-
-    // Record the transaction
-    const auto transaction_result = database::client::query(
-        "INSERT INTO transactions (id, user_id, post_id, price) VALUES ($1, $2, $3, $4) RETURNING id;",
-        {uuid, user_id, post_id, to_string(new_price)}
-    );
-
-    if (transaction_result.empty())
+    // Retrieve user balance
+    const auto user_balance_result = database::client::query("SELECT balance FROM users WHERE id = $1;", {user_id});
+    if (user_balance_result.empty())
     {
         res.result(http::status::internal_server_error);
         res.body() = R"({"message": "Internal Server Error"})";
         res.prepare_payload();
         return res;
     }
+    int balance = stoi(user_balance_result[0][0]);
+    if (balance < new_price)
+    {
+        res.result(http::status::bad_request);
+        res.body() = R"({"message": "Insufficient balance"})";
+        res.prepare_payload();
+        return res;
+    }
+
+    const auto uuid = to_string(gen_uuid());
 
     // Update post with the current bidded price
     if (database::client::query("UPDATE posts SET price = $1 WHERE id = $2;", {to_string(new_price), post_id}).empty())
@@ -189,9 +193,23 @@ http::response<http::string_body> bid_post(http::request<http::string_body> cons
         return res;
     }
 
+    // Insert new bid into the bids table
+    const auto bid_result = database::client::query(
+        "INSERT INTO bids (id, user_id, post_id, price) VALUES ($1, $2, $3, $4) RETURNING id;",
+        {uuid, user_id, post_id, to_string(new_price)}
+    );
+
+    if (bid_result.empty())
+    {
+        res.result(http::status::internal_server_error);
+        res.body() = R"({"message": "Internal Server Error"})";
+        res.prepare_payload();
+        return res;
+    }
+
     nlohmann::json response;
     response["message"] = "Bid placed successfully";
-    response["transaction_id"] = transaction_result[0][0];
+    response["bid_id"] = bid_result[0][0];
 
     res.result(http::status::created);
     res.body() = response.dump();
@@ -269,6 +287,63 @@ http::response<http::string_body> bid_post(http::request<http::string_body> cons
                 });
             }
         }
+
+        res.result(http::status::ok);
+        res.body() = response.dump();
+        res.prepare_payload();
+        return res;
+    }
+
+    http::response<http::string_body> change_post(http::request<http::string_body> const &req,
+                                                  http::response<http::string_body> &res)
+    {
+        nlohmann::json request_body = nlohmann::json::parse(req.body());
+        const string post_id = request_body["post_id"];
+        // Assuming the logged-in user ID is stored in the request
+        const string logged_in_user_id = req["user_id"];
+
+        // Validate post ID
+        boost::uuids::uuid uuid;
+        if (!is_valid_uuid(post_id, uuid) || uuid.version() != 4)
+        {
+            res.result(http::status::bad_request);
+            res.body() = R"({"message": "Invalid Post ID format"})";
+            res.prepare_payload();
+            return res;
+        }
+
+        // Retrieve post user_id
+        const auto post_result = database::client::query("SELECT user_id FROM posts WHERE id = $1;", {post_id});
+        if (post_result.empty())
+        {
+            res.result(http::status::not_found);
+            res.body() = R"({"message": "Not Found"})";
+            res.prepare_payload();
+            return res;
+        }
+        string post_user_id = post_result[0][0];
+
+        // Check if the logged-in user is the same as the post user_id
+        if (logged_in_user_id != post_user_id)
+        {
+            res.result(http::status::forbidden);
+            res.body() = R"({"message": "You are not authorized to change this post"})";
+            res.prepare_payload();
+            return res;
+        }
+
+        // Update post status to inactive
+        const auto result = database::client::query("UPDATE posts SET status = 'inactive' WHERE id = $1;", {post_id});
+        if (result.empty())
+        {
+            res.result(http::status::internal_server_error);
+            res.body() = R"({"message": "Internal Server Error"})";
+            res.prepare_payload();
+            return res;
+        }
+
+        nlohmann::json response;
+        response["message"] = "Post status updated to inactive";
 
         res.result(http::status::ok);
         res.body() = response.dump();
