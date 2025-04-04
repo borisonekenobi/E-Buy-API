@@ -176,7 +176,7 @@ namespace controllers::post
         if (posts.empty())
             return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
 
-        if (const auto post = posts[0]; post[POST_USER_ID_INDEX] != auth["id"].get<string>())
+        if (const auto post = posts[FIRST_OR_ONLY]; post[POST_USER_ID_INDEX] != auth["id"].get<string>())
             return prepare_response(res, http::status::forbidden, R"({"message": "You are not authorized to update this post"})");
 
         nlohmann::json body;
@@ -224,7 +224,7 @@ namespace controllers::post
         if (posts.empty())
             return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
 
-        if (const auto post = posts[0]; post[POST_USER_ID_INDEX] != auth["id"].get<string>())
+        if (const auto post = posts[FIRST_OR_ONLY]; post[POST_USER_ID_INDEX] != auth["id"].get<string>())
             return prepare_response(res, http::status::forbidden, R"({"message": "You are not authorized to update this post"})");
 
         if (vector<vector<string>> update_result; !database::client::query(

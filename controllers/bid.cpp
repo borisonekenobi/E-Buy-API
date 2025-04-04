@@ -41,7 +41,7 @@ namespace controllers::post
         if (posts.empty())
             return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
 
-        const auto& post = posts[0];
+        const auto& post = posts[FIRST_OR_ONLY];
         if (post[POST_TYPE_INDEX] != "auction")
             return prepare_response(res, http::status::forbidden, R"({"message": "Post is not an auction"})");
 

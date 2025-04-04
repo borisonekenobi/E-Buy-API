@@ -9,6 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
+#define FIRST_OR_ONLY 0
 #define INTERNAL_SERVER_ERROR R"({"message": "Internal server error"})"
 #define DATABASE_ERROR "Database error"
 

@@ -67,7 +67,7 @@ namespace controllers::authentication
         if (users.empty())
             return prepare_response(res, http::status::not_found, R"({"message": "User not found"})");
 
-        const auto& user = users[0];
+        const auto& user = users[FIRST_OR_ONLY];
         auto salt = user[USER_SALT_INDEX];
         const auto hashed = ::hash(body["password"].get<string>(), salt);
         const auto new_hashed = ::hash(body["new_password"].get<string>(), salt);
@@ -101,7 +101,7 @@ namespace controllers::authentication
         if (users.empty())
             return prepare_response(res, http::status::not_found, INVALID_USERNAME_PASSWORD);
 
-        auto user = users[0];
+        auto user = users[FIRST_OR_ONLY];
         auto salt = user[USER_SALT_INDEX];
         if (const auto hashed = ::hash(body["password"].get<std::string>(), salt); hashed != user[USER_PASSWORD_INDEX])
             return prepare_response(res, http::status::not_found, INVALID_USERNAME_PASSWORD);
