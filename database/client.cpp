@@ -49,41 +49,51 @@ namespace database::client
 
     // Executes a query on the database and returns the results.
     // WARNING: This function is not safe from SQL injection attacks.
-    vector<vector<string>> query(const string& query, const vector<string>& params)
+    bool query(const string& query, const vector<string>& params, vector<vector<string>>& results)
     {
-        const string prepared_query = prepare_query(query, params);
+        try
+        {
+            const string prepared_query = prepare_query(query, params);
 
+            sqlite3* db;
+            if (sqlite3_open("database.db", &db))
+            {
+                cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
+                exit(EXIT_FAILURE);
+            }
+            results = executeQuery(db, prepared_query);
+            sqlite3_close(db);
+
+            return true;
+        }
+        catch (const exception& e)
+        {
+            cerr << "Error executing query: " << e.what() << endl;
+            return false;
+        }
+    }
+
+    //transactions
+
+    sqlite3* open_connection()
+    {
         sqlite3* db;
         if (sqlite3_open("database.db", &db))
         {
             cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
             exit(EXIT_FAILURE);
         }
-        const vector<vector<string>> query_results = executeQuery(db, prepared_query);
-        sqlite3_close(db);
-
-        return query_results;
-    }
-
-
-    //transactions
-
-    sqlite3* open_connection() {
-        sqlite3* db;
-        if (sqlite3_open("database.db", &db)) {
-            cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
-            exit(EXIT_FAILURE);
-        }
         return db;
     }
 
-    void close_connection(sqlite3* db) {
+    void close_connection(sqlite3* db)
+    {
         sqlite3_close(db);
     }
 
-    vector<vector<string>> transactional_query(sqlite3* db, const string& query, const vector<string>& params) {
+    vector<vector<string>> transactional_query(sqlite3* db, const string& query, const vector<string>& params)
+    {
         const string prepared_query = prepare_query(query, params);
         return executeQuery(db, prepared_query);
     }
-
 }

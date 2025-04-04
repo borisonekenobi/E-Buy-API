@@ -14,60 +14,45 @@ namespace controllers::post
     http::response<http::string_body> buy(http::request<http::string_body> const& req,
                                           http::response<http::string_body>& res)
     {
-        const auto auth_header = req[http::field::authorization];
-        if (auth_header.empty())
+        nlohmann::json auth;
+        if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
         {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Authorization header is missing."})").dump();
-            res.prepare_payload();
-            return res;
-        }
-
-        const auto space_pos = auth_header.find(' ');
-        if (space_pos == string::npos)
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid authorization header format."})").dump();
-            res.prepare_payload();
-            return res;
-        }
-
-        const auto data = verify_token(auth_header.substr(space_pos + 1));
-        if (!is_valid_token_data(data))
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid or expired token."})").dump();
+            res.result(http::status::bad_request);
+            res.body() = message;
             res.prepare_payload();
             return res;
         }
 
         const string post_id = req.target().substr(15);
         boost::uuids::uuid uuid;
-        if (!is_valid_uuid(post_id, uuid) || uuid.version() != UUIDv4)
+        if (!is_valid_uuid(post_id, uuid))
         {
             res.result(http::status::bad_request);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
+            res.body() = R"({"message": "Invalid Post ID format"})";
             res.prepare_payload();
             return res;
         }
 
-        const auto results = database::client::query(
+        vector<vector<string>> posts;
+        if (!database::client::query(
             "SELECT * FROM posts WHERE id = $1 AND status = 'active';",
-            {to_string(uuid)}
-        );
-        if (results.empty())
+            {to_string(uuid)}, posts
+        ))
+            throw runtime_error(DATABASE_ERROR);
+
+        if (posts.empty())
         {
             res.result(http::status::not_found);
-            res.body() = nlohmann::json::parse(R"({"message": "Post not found."})").dump();
+            res.body() = R"({"message": "Post not found."})";
             res.prepare_payload();
             return res;
         }
 
-        const auto& post = results[0];
+        const auto& post = posts[0];
         if (post[POST_TYPE_INDEX] != "sale")
         {
             res.result(http::status::forbidden);
-            res.body() = nlohmann::json::parse(R"({"message": "This post is not for sale."})").dump();
+            res.body() = R"({"message": "This post is not for sale."})";
             res.prepare_payload();
             return res;
         }
@@ -81,7 +66,7 @@ namespace controllers::post
             database::client::transactional_query(
                 db,
                 "INSERT INTO transactions (id, user_id, post_id, price) VALUES ($1, $2, $3, $4);",
-                {to_string(gen_uuid()), data["id"], to_string(uuid), post[POST_PRICE_INDEX]}
+                {to_string(gen_uuid()), auth["id"].get<string>(), to_string(uuid), post[POST_PRICE_INDEX]}
             );
             database::client::transactional_query(
                 db,
@@ -106,10 +91,7 @@ namespace controllers::post
             {
             }
 
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Internal Server Error"})";
-            res.prepare_payload();
-            return res;
+            throw runtime_error(DATABASE_ERROR);
         }
 
         nlohmann::json response;
@@ -125,7 +107,7 @@ namespace controllers::post
             {
                 "transaction", {
                     {"id", to_string(gen_uuid())},
-                    {"user_id", data["id"].get<string>()},
+                    {"user_id", auth["id"].get<string>()},
                     {"price", post[POST_PRICE_INDEX]},
                 }
             }

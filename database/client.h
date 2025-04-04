@@ -8,7 +8,7 @@ using namespace std;
 
 namespace database::client
 {
-    vector<vector<string>> query(const string& query, const vector<string>& params);
+    bool query(const string& query, const vector<string>& params, vector<vector<string>>& results);
 
     sqlite3* open_connection();
 

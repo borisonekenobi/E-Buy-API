@@ -14,82 +14,66 @@ namespace controllers::post
     http::response<http::string_body> bid(http::request<http::string_body> const& req,
                                           http::response<http::string_body>& res)
     {
-        const auto auth_header = req[http::field::authorization];
-        if (auth_header.empty())
+        nlohmann::json auth;
+        if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
         {
             res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Authorization header is missing."})").dump();
-            res.prepare_payload();
-            return res;
-        }
-
-        const auto space_pos = auth_header.find(' ');
-        if (space_pos == string::npos)
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid authorization header format."})").dump();
-            res.prepare_payload();
-            return res;
-        }
-
-        const auto data = verify_token(auth_header.substr(space_pos + 1));
-        if (!is_valid_token_data(data))
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid or expired token."})").dump();
+            res.body() = message;
             res.prepare_payload();
             return res;
         }
 
         const string post_id = req.target().substr(15);
         boost::uuids::uuid uuid;
-        if (!is_valid_uuid(post_id, uuid) || uuid.version() != UUIDv4)
+        if (!is_valid_uuid(post_id, uuid))
         {
             res.result(http::status::bad_request);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
+            res.body() = R"({"message": "Invalid Post ID format"})";
             res.prepare_payload();
             return res;
         }
 
-        const auto body = nlohmann::json::parse(req.body());
-        if (!body.contains("price"))
+        nlohmann::json body;
+        if (string message; is_malformed_body(req.body(), {"price"}, message, body))
         {
             res.result(http::status::bad_request);
-            res.body() = nlohmann::json::parse(R"({"message": "Missing required fields."})").dump();
+            res.body() = message;
             res.prepare_payload();
             return res;
         }
 
-        const auto results = database::client::query(
+        double price;
+        if (string message; !is_valid_price(body["price"], message, price))
+        {
+            res.result(http::status::bad_request);
+            res.body() = message;
+            res.prepare_payload();
+            return res;
+        }
+
+        vector<vector<string>> posts;
+        if (!database::client::query(
             "SELECT * FROM posts WHERE id = $1 AND status = 'active';",
-            {to_string(uuid)}
-        );
-        if (results.empty())
+            {to_string(uuid)}, posts
+        ))
+            throw runtime_error(DATABASE_ERROR);
+
+        if (posts.empty())
         {
             res.result(http::status::not_found);
-            res.body() = nlohmann::json::parse(R"({"message": "Post not found."})").dump();
+            res.body() = R"({"message": "Post not found."})";
             res.prepare_payload();
             return res;
         }
 
-        const auto& post = results[0];
+        const auto& post = posts[0];
         if (post[POST_TYPE_INDEX] != "auction")
         {
             res.result(http::status::forbidden);
-            res.body() = nlohmann::json::parse(R"({"message": "Post is not an auction."})").dump();
+            res.body() = R"({"message": "Post is not an auction."})";
             res.prepare_payload();
             return res;
         }
-
-        database::client::query(
-            "INSERT INTO bids (id, user_id, post_id, price) VALUES ($1, $2, $3, $4);",
-            {to_string(gen_uuid()), data["id"], to_string(uuid), body["price"]}
-        );
-
-        const auto bids = database::client::query(
-            "SELECT * FROM bids WHERE post_id = $1 ORDER BY price DESC;",
-            {to_string(uuid)}
-        );
 
         nlohmann::json response;
         response["message"] = "Bid placed successfully";
@@ -103,6 +87,21 @@ namespace controllers::post
             {"status", post[POST_STATUS_INDEX]},
             {"bids", nlohmann::json::array()}
         };
+
+        if (vector<vector<string>> insert_results; !database::client::query(
+            "INSERT INTO bids (id, user_id, post_id, price) VALUES ($1, $2, $3, $4);",
+            {to_string(gen_uuid()), auth["id"].get<string>(), to_string(uuid), to_string(price)},
+            insert_results
+        ))
+            throw runtime_error(DATABASE_ERROR);
+
+        vector<vector<string>> bids;
+        if (!database::client::query(
+            "SELECT * FROM bids WHERE post_id = $1 ORDER BY price DESC;",
+            {to_string(uuid)}, bids
+        ))
+            throw runtime_error(DATABASE_ERROR);
+
         for (const auto& bid : bids)
             response["post"]["bids"].push_back({
                 {"id", bid[BID_ID_INDEX]},
