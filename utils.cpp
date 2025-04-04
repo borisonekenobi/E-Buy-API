@@ -153,12 +153,12 @@ bool is_valid_price(double& result, string& err_message)
 {
     if (result < 0)
     {
-        err_message = R"({"message": "Price cannot be negative."})";
+        err_message = R"({"message": "Price cannot be negative"})";
         return false;
     }
     if (result > MAX_PRICE)
     {
-        err_message = R"({"message": "Price cannot exceed 1,000,000."})";
+        err_message = R"({"message": "Price cannot exceed 1,000,000"})";
         return false;
     }
 
@@ -174,7 +174,7 @@ bool is_valid_price(const string& inp, string& err_message, double& result)
     }
     catch (const invalid_argument&)
     {
-        err_message = R"({"message": "Invalid price format."})";
+        err_message = R"({"message": "Invalid price format"})";
         return false;
     }
 
@@ -189,6 +189,15 @@ bool is_valid_price(const nlohmann::basic_json<>& price, string& err_message, do
         result = price.get<double>();
         return is_valid_price(result, err_message);
     }
-    err_message = R"({"message": "Price must be a number."})";
+    err_message = R"({"message": "Price must be a number"})";
     return false;
+}
+
+http::response<http::string_body> prepare_response(http::response<http::string_body>& res, const http::status status,
+                                                   const string& body)
+{
+    res.result(status);
+    res.body() = body;
+    res.prepare_payload();
+    return res;
 }

@@ -1,5 +1,7 @@
 #include "post.h"
 
+#include <jwt-cpp/jwt.h>
+
 #include <nlohmann/json.hpp>
 
 #include "../utils.h"
@@ -15,30 +17,15 @@ namespace controllers::post
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
-        {
-            res.result(http::status::unauthorized);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::unauthorized, message);
 
         nlohmann::json body;
         if (string message; is_malformed_body(req.body(), {"title", "description", "price", "type"}, message, body))
-        {
-            res.result(http::status::bad_request);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, message);
 
         double price;
         if (string message; !is_valid_price(body["price"], message, price))
-        {
-            res.result(http::status::bad_request);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, message);
 
         const string uuid = to_string(gen_uuid());
         const string user_id = auth["id"].get<string>();
@@ -65,10 +52,8 @@ namespace controllers::post
             {"type", type},
             {"status", status}
         };
-        res.result(http::status::created);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
+
+        return prepare_response(res, http::status::created, response.dump());
     }
 
     http::response<http::string_body> find(http::request<http::string_body> const& req,
@@ -84,12 +69,7 @@ namespace controllers::post
             throw runtime_error(DATABASE_ERROR);
 
         if (posts.empty())
-        {
-            res.result(http::status::not_found);
-            res.body() = nlohmann::json::array().dump();
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::not_found, nlohmann::json::array().dump());
 
         auto response = nlohmann::json::array();
         for (const auto& post : posts)
@@ -102,10 +82,8 @@ namespace controllers::post
                 {"type", post[POST_TYPE_INDEX]},
                 {"status", post[POST_STATUS_INDEX]},
             });
-        res.result(http::status::ok);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
+
+        return prepare_response(res, http::status::ok, response.dump());
     }
 
     http::response<http::string_body> find_one(http::request<http::string_body> const& req,
@@ -113,33 +91,18 @@ namespace controllers::post
     {
         const string post_id = req.target().substr(11);
         if (post_id.empty())
-        {
-            res.result(http::status::bad_request);
-            res.body() = nlohmann::json::parse(R"({"message": "Post ID is missing"})").dump();
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, R"({"message": "Post ID is missing"})");
 
         boost::uuids::uuid uuid;
         if (!is_valid_uuid(post_id, uuid))
-        {
-            res.result(http::status::bad_request);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
         vector<vector<string>> posts;
         if (!database::client::query("SELECT * FROM posts WHERE id = $1;", {to_string(uuid)}, posts))
             throw runtime_error(DATABASE_ERROR);
 
         if (posts.empty())
-        {
-            res.result(http::status::not_found);
-            res.body() = R"({"message": "Post not found"})";
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
 
         const auto post = posts[0];
         nlohmann::json response = {
@@ -188,10 +151,7 @@ namespace controllers::post
                 });
         }
 
-        res.result(http::status::ok);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
+        return prepare_response(res, http::status::ok, response.dump());
     }
 
     http::response<http::string_body> update(http::request<http::string_body> const& req,
@@ -199,40 +159,20 @@ namespace controllers::post
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
-        {
-            res.result(http::status::unauthorized);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::unauthorized, message);
 
         const string post_id = req.target().substr(11);
         boost::uuids::uuid uuid;
         if (!is_valid_uuid(post_id, uuid))
-        {
-            res.result(http::status::bad_request);
-            res.body() = R"({"message": "Invalid Post ID format"})";
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
         nlohmann::json body;
         if (string message; is_malformed_body(req.body(), {"title", "description", "price", "type"}, message, body))
-        {
-            res.result(http::status::bad_request);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, message);
 
         double price;
         if (string message; !is_valid_price(body["price"], message, price))
-        {
-            res.result(http::status::bad_request);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, message);
 
         const string user_id = auth["id"].get<string>();
         const string title = body["title"].get<string>();
@@ -246,10 +186,7 @@ namespace controllers::post
         ))
             throw runtime_error(DATABASE_ERROR);
 
-        res.result(http::status::ok);
-        res.body() = R"({"message": "Post updated successfully"})";
-        res.prepare_payload();
-        return res;
+        return prepare_response(res, http::status::ok, R"({"message": "Post updated successfully"})");
     }
 
     http::response<http::string_body> delete_(http::request<http::string_body> const& req,
@@ -257,22 +194,12 @@ namespace controllers::post
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
-        {
-            res.result(http::status::unauthorized);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::unauthorized, message);
 
         const string post_id = req.target().substr(11);
         boost::uuids::uuid uuid;
         if (!is_valid_uuid(post_id, uuid))
-        {
-            res.result(http::status::bad_request);
-            res.body() = R"({"message": "Invalid Post ID format"})";
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::unauthorized, R"({"message": "Invalid Post ID format"})");
 
         if (vector<vector<string>> update_result; !database::client::query(
             "UPDATE posts SET status = 'inactive' WHERE id = $1 AND user_id = $2;",
@@ -280,9 +207,6 @@ namespace controllers::post
         ))
             throw runtime_error(DATABASE_ERROR);
 
-        res.result(http::status::ok);
-        res.body() = R"({"message": "Post deleted successfully"})";
-        res.prepare_payload();
-        return res;
+        return prepare_response(res, http::status::ok, R"({"message": "Post deleted successfully"})");
     }
 }

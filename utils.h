@@ -21,3 +21,5 @@ bool is_malformed_body(const std::string& req_body, const std::vector<std::strin
 bool is_malformed_auth(const std::string& auth_header, std::string& err_message, nlohmann::json& data);
 bool is_malformed_renew(const std::string& auth_header, std::string& err_message, nlohmann::json& data);
 bool is_valid_price(const nlohmann::basic_json<>& price, std::string& err_message, double& result);
+http::response<http::string_body> prepare_response(http::response<http::string_body>& res, http::status status,
+                                                   const std::string& body);

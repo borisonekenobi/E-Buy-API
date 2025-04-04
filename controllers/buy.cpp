@@ -16,22 +16,12 @@ namespace controllers::post
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
-        {
-            res.result(http::status::bad_request);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, message);
 
         const string post_id = req.target().substr(15);
         boost::uuids::uuid uuid;
         if (!is_valid_uuid(post_id, uuid))
-        {
-            res.result(http::status::bad_request);
-            res.body() = R"({"message": "Invalid Post ID format"})";
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
         vector<vector<string>> posts;
         if (!database::client::query(
@@ -41,21 +31,11 @@ namespace controllers::post
             throw runtime_error(DATABASE_ERROR);
 
         if (posts.empty())
-        {
-            res.result(http::status::not_found);
-            res.body() = R"({"message": "Post not found."})";
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
 
         const auto& post = posts[0];
         if (post[POST_TYPE_INDEX] != "sale")
-        {
-            res.result(http::status::forbidden);
-            res.body() = R"({"message": "This post is not for sale."})";
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::forbidden, R"({"message": "This post is not for sale"})");
 
         sqlite3* db = database::client::open_connection();
         try
@@ -112,9 +92,7 @@ namespace controllers::post
                 }
             }
         };
-        res.result(http::status::ok);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
+
+        return prepare_response(res, http::status::ok, response.dump());
     }
 }

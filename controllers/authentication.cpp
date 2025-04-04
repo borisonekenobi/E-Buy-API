@@ -16,12 +16,7 @@ namespace controllers::authentication
     {
         nlohmann::json body;
         if (string message; is_malformed_body(req.body(), {"name", "username", "password"}, message, body))
-        {
-            res.result(http::status::bad_request);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, message);
 
         vector<vector<string>> users;
         if (!database::client::query("SELECT * FROM users WHERE username = $1", {body["username"].get<string>()},
@@ -29,12 +24,7 @@ namespace controllers::authentication
             throw runtime_error(DATABASE_ERROR);
 
         if (!users.empty())
-        {
-            res.result(http::status::conflict);
-            res.body() = R"({"message": "Username already exists"})";
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::conflict, R"({"message": "Username already exists"})");
 
         string salt;
         const auto hashed = ::hash(body["password"].get<string>(), salt);
@@ -53,10 +43,7 @@ namespace controllers::authentication
         ))
             throw runtime_error(DATABASE_ERROR);
 
-        res.result(http::status::created);
-        res.body() = R"({"message": "User created successfully"})";
-        res.prepare_payload();
-        return res;
+        return prepare_response(res, http::status::created, R"({"message": "User created successfully"})");
     }
 
     http::response<http::string_body> change_password(http::request<http::string_body> const& req,
@@ -64,21 +51,11 @@ namespace controllers::authentication
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
-        {
-            res.result(http::status::unauthorized);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::unauthorized, message);
 
         nlohmann::json body;
         if (string message; is_malformed_body(req.body(), {"password", "new_password"}, message, body))
-        {
-            res.result(http::status::bad_request);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, message);
 
         vector<vector<string>> users;
         if (!database::client::query("SELECT * FROM users WHERE id = $1 AND status = 'active'",
@@ -88,24 +65,14 @@ namespace controllers::authentication
             throw runtime_error(DATABASE_ERROR);
 
         if (users.empty())
-        {
-            res.result(http::status::not_found);
-            res.body() = R"({"message": "User not found"})";
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::not_found, R"({"message": "User not found"})");
 
         const auto& user = users[0];
         auto salt = user[USER_SALT_INDEX];
         const auto hashed = ::hash(body["password"].get<string>(), salt);
         const auto new_hashed = ::hash(body["new_password"].get<string>(), salt);
         if (hashed != user[USER_PASSWORD_INDEX])
-        {
-            res.result(http::status::unauthorized);
-            res.body() = R"({"message": "Invalid password"})";
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::unauthorized, R"({"message": "Invalid password"})");
 
         if (vector<vector<string>> update_result; !database::client::query(
             "UPDATE users SET password = $1 WHERE id = $2",
@@ -114,10 +81,7 @@ namespace controllers::authentication
         ))
             throw runtime_error(DATABASE_ERROR);
 
-        res.result(http::status::ok);
-        res.body() = R"({"message": "Password changed successfully"})";
-        res.prepare_payload();
-        return res;
+        return prepare_response(res, http::status::ok, R"({"message": "Password changed successfully"})");
     }
 
     http::response<http::string_body> sign_in(http::request<http::string_body> const& req,
@@ -125,12 +89,7 @@ namespace controllers::authentication
     {
         nlohmann::json body;
         if (string message; is_malformed_body(req.body(), {"username", "password"}, message, body))
-        {
-            res.result(http::status::bad_request);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, message);
 
         vector<vector<string>> users;
         if (!database::client::query("SELECT * FROM users WHERE username = $1 AND status = 'active'",
@@ -140,24 +99,13 @@ namespace controllers::authentication
             throw runtime_error(DATABASE_ERROR);
 
         if (users.empty())
-        {
-            res.result(http::status::not_found);
-            res.body() = INVALID_USERNAME_PASSWORD;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::not_found, INVALID_USERNAME_PASSWORD);
 
         auto user = users[0];
         auto salt = user[USER_SALT_INDEX];
         if (const auto hashed = ::hash(body["password"].get<std::string>(), salt); hashed != user[USER_PASSWORD_INDEX])
-        {
-            res.result(http::status::not_found);
-            res.body() = INVALID_USERNAME_PASSWORD;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::not_found, INVALID_USERNAME_PASSWORD);
 
-        res.result(http::status::ok);
         nlohmann::json response;
         response["user"] = {
             {"id", user[USER_ID_INDEX]},
@@ -169,9 +117,7 @@ namespace controllers::authentication
         const nlohmann::json refresh = {{"type", "refresh"}, {"user", response["user"]}};
         response["access"] = generate_access_token(response["user"]);
         response["refresh"] = generate_refresh_token(refresh);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
+        return prepare_response(res, http::status::ok, response.dump());
     }
 
     http::response<http::string_body> renew_tokens(http::request<http::string_body> const& req,
@@ -179,19 +125,11 @@ namespace controllers::authentication
     {
         nlohmann::json auth;
         if (string message; is_malformed_renew(req[http::field::authorization], message, auth))
-        {
-            res.result(http::status::bad_request);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, message);
 
-        res.result(http::status::ok);
         nlohmann::json response;
         response["access"] = generate_access_token(auth["user"].get<nlohmann::json>());
         response["refresh"] = generate_refresh_token(auth);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
+        return prepare_response(res, http::status::ok, response.dump());
     }
 }

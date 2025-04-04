@@ -16,40 +16,20 @@ namespace controllers::post
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
-        {
-            res.result(http::status::unauthorized);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::unauthorized, message);
 
         const string post_id = req.target().substr(15);
         boost::uuids::uuid uuid;
         if (!is_valid_uuid(post_id, uuid))
-        {
-            res.result(http::status::bad_request);
-            res.body() = R"({"message": "Invalid Post ID format"})";
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
         nlohmann::json body;
         if (string message; is_malformed_body(req.body(), {"price"}, message, body))
-        {
-            res.result(http::status::bad_request);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, message);
 
         double price;
         if (string message; !is_valid_price(body["price"], message, price))
-        {
-            res.result(http::status::bad_request);
-            res.body() = message;
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, message);
 
         vector<vector<string>> posts;
         if (!database::client::query(
@@ -59,21 +39,11 @@ namespace controllers::post
             throw runtime_error(DATABASE_ERROR);
 
         if (posts.empty())
-        {
-            res.result(http::status::not_found);
-            res.body() = R"({"message": "Post not found."})";
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
 
         const auto& post = posts[0];
         if (post[POST_TYPE_INDEX] != "auction")
-        {
-            res.result(http::status::forbidden);
-            res.body() = R"({"message": "Post is not an auction."})";
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::forbidden, R"({"message": "Post is not an auction"})");
 
         nlohmann::json response;
         response["message"] = "Bid placed successfully";
@@ -108,9 +78,7 @@ namespace controllers::post
                 {"user_id", bid[BID_USER_ID_INDEX]},
                 {"price", bid[BID_PRICE_INDEX]},
             });
-        res.result(http::status::ok);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
+
+        return prepare_response(res, http::status::ok, response.dump());
     }
 }
