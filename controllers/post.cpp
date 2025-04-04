@@ -212,7 +212,7 @@ namespace controllers::post
         const string post_id = req.target().substr(11);
         boost::uuids::uuid uuid;
         if (!is_valid_uuid(post_id, uuid))
-            return prepare_response(res, http::status::unauthorized, R"({"message": "Invalid Post ID format"})");
+            return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
         vector<vector<string>> posts;
         if (!database::client::query(

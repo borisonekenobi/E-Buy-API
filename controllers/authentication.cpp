@@ -125,7 +125,7 @@ namespace controllers::authentication
     {
         nlohmann::json auth;
         if (string message; is_malformed_renew(req[http::field::authorization], message, auth))
-            return prepare_response(res, http::status::bad_request, message);
+            return prepare_response(res, http::status::unauthorized, message);
 
         nlohmann::json response;
         response["access"] = generate_access_token(auth["user"].get<nlohmann::json>());

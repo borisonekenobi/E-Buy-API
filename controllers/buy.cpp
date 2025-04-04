@@ -16,7 +16,7 @@ namespace controllers::post
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
-            return prepare_response(res, http::status::bad_request, message);
+            return prepare_response(res, http::status::unauthorized, message);
 
         const string post_id = req.target().substr(15);
         boost::uuids::uuid uuid;
