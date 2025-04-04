@@ -27,8 +27,10 @@ namespace routers::api
 
 		if (req.method() == http::verb::post && req.target() == "/api/posts")
 			return controllers::post::create(req, res);
-		if (req.method() == http::verb::get && req.target() == "/api/posts")
+		if (req.method() == http::verb::get && req.target() == "/api/posts/sale")
 			return controllers::post::find(req, res);
+		if (req.method() == http::verb::get && req.target() == "/api/posts/auction")
+            return controllers::post::find(req, res);
 		if (req.method() == http::verb::get && req.target().starts_with("/api/posts/"))
 			return controllers::post::find_one(req, res);
 		if (req.method() == http::verb::put && req.target().starts_with("/api/posts/"))

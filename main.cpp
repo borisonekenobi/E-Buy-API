@@ -8,6 +8,7 @@
 #include <boost/beast/http.hpp>
 
 #include "authentication-functions.h"
+#include "utils.h"
 
 #include "routers/api.h"
 
@@ -65,11 +66,10 @@ static http::response<http::string_body> handle_request(http::request<http::stri
 	{
 		if (req.method() == http::verb::options)
 		{
-			res.result(http::status::no_content);
-			res.prepare_payload();
-			return res;
+			print_status(req, res, 0ll);
+			return prepare_response(res, http::status::no_content, "");
 		}
-		
+
 		const auto now = chrono::system_clock::now();
 
 		if (req.target().starts_with("/api")) res = routers::api::handle_request(req, res);
@@ -81,11 +81,8 @@ static http::response<http::string_body> handle_request(http::request<http::stri
 	catch (const exception& e)
 	{
 		cerr << "Error: " << e.what() << endl;
-		res.result(http::status::internal_server_error);
-		res.body() = R"({"message": "Internal Server Error"})";
-		res.prepare_payload();
 		print_status(req, res, 0);
-		return res;
+		return prepare_response(res, http::status::internal_server_error, INTERNAL_SERVER_ERROR);
 	}
 }
 

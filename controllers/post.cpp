@@ -1,8 +1,9 @@
 #include "post.h"
 
+#include <jwt-cpp/jwt.h>
+
 #include <nlohmann/json.hpp>
 
-#include "../authentication-functions.h"
 #include "../utils.h"
 
 #include "../database/client.h"
@@ -14,65 +15,31 @@ namespace controllers::post
     http::response<http::string_body> create(http::request<http::string_body> const& req,
                                              http::response<http::string_body>& res)
     {
-        const auto auth_header = req[http::field::authorization];
-        if (auth_header.empty())
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Authorization header is missing."})").dump();
-            res.prepare_payload();
-            return res;
-        }
+        nlohmann::json auth;
+        if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
+            return prepare_response(res, http::status::unauthorized, message);
 
-        const auto space_pos = auth_header.find(' ');
-        if (space_pos == string::npos)
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid authorization header format."})").dump();
-            res.prepare_payload();
-            return res;
-        }
+        nlohmann::json body;
+        if (string message; is_malformed_body(req.body(), {"title", "description", "price", "type"}, message, body))
+            return prepare_response(res, http::status::bad_request, message);
 
-        const auto data = verify_token(auth_header.substr(space_pos + 1));
-        if (!is_valid_token_data(data))
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid or expired token."})").dump();
-            res.prepare_payload();
-            return res;
-        }
-
-        auto body = nlohmann::json::parse(req.body());
-        if (!body.contains("title") || !body.contains("description") || !body.contains("price") ||
-            !body.contains("type"))
-        {
-            res.result(http::status::bad_request);
-            res.body() = nlohmann::json::parse(R"({"message": "Missing required fields."})").dump();
-            res.prepare_payload();
-            return res;
-        }
+        double price;
+        if (string message; !is_valid_price(body["price"], message, price))
+            return prepare_response(res, http::status::bad_request, message);
 
         const string uuid = to_string(gen_uuid());
-        const string user_id = data["id"].get<string>();
+        const string user_id = auth["id"].get<string>();
         const string title = body["title"].get<string>();
         const string description = body["description"].get<string>();
-        const double price = body["price"].get<double>();
         const string type = body["type"].get<string>();
         const string status = "active";
 
-        try
-        {
-            const auto result = database::client::query(
-                "INSERT INTO posts (id, user_id, title, description, price, type, status) VALUES ($1, $2, $3, $4, $5, $6, $7);",
-                {uuid, user_id, title, description, to_string(price), type, status}
-            );
-        }
-        catch (const std::exception& e)
-        {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
-            res.prepare_payload();
-            return res;
-        }
+        if (vector<vector<string>> result; !database::client::query(
+            "INSERT INTO posts (id, user_id, title, description, price, type, status) VALUES ($1, $2, $3, $4, $5, $6, $7);",
+            {uuid, user_id, title, description, to_string(price), type, status},
+            result
+        ))
+            throw runtime_error(DATABASE_ERROR);
 
         nlohmann::json response;
         response["message"] = "Post created successfully";
@@ -85,38 +52,24 @@ namespace controllers::post
             {"type", type},
             {"status", status}
         };
-        res.result(http::status::created);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
+
+        return prepare_response(res, http::status::created, response.dump());
     }
 
     http::response<http::string_body> find(http::request<http::string_body> const& req,
                                            http::response<http::string_body>& res)
     {
+        const auto type = req.target().substr(11);
         vector<vector<string>> posts;
-        try
-        {
-            posts = database::client::query(
-                "SELECT * FROM posts WHERE status = 'active' ORDER BY random() LIMIT 10;",
-                {}
-            );
-        }
-        catch (const std::exception& e)
-        {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
-            res.prepare_payload();
-            return res;
-        }
+        if (!database::client::query(
+            "SELECT * FROM posts WHERE status = 'active' AND type = $1 ORDER BY random() LIMIT 10;",
+            {type},
+            posts
+        ))
+            throw runtime_error(DATABASE_ERROR);
 
         if (posts.empty())
-        {
-            res.result(http::status::not_found);
-            res.body() = nlohmann::json::parse(R"({"message": "No posts found"})").dump();
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::not_found, nlohmann::json::array().dump());
 
         auto response = nlohmann::json::array();
         for (const auto& post : posts)
@@ -129,55 +82,29 @@ namespace controllers::post
                 {"type", post[POST_TYPE_INDEX]},
                 {"status", post[POST_STATUS_INDEX]},
             });
-        res.result(http::status::ok);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
+
+        return prepare_response(res, http::status::ok, response.dump());
     }
 
     http::response<http::string_body> find_one(http::request<http::string_body> const& req,
                                                http::response<http::string_body>& res)
     {
         const string post_id = req.target().substr(11);
-
         if (post_id.empty())
-        {
-            res.result(http::status::bad_request);
-            res.body() = nlohmann::json::parse(R"({"message": "Post ID is missing"})").dump();
-            res.prepare_payload();
-            return res;
-        }
+            return prepare_response(res, http::status::bad_request, R"({"message": "Post ID is missing"})");
 
         boost::uuids::uuid uuid;
-        if (!is_valid_uuid(post_id, uuid) || uuid.version() != UUIDv4)
-        {
-            res.result(http::status::bad_request);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
-            res.prepare_payload();
-            return res;
-        }
+        if (!is_valid_uuid(post_id, uuid))
+            return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
-        vector<vector<string>> post;
-        try
-        {
-            post = database::client::query("SELECT * FROM posts WHERE id = $1;", {to_string(uuid)});
-        }
-        catch (const std::exception& e)
-        {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
-            res.prepare_payload();
-            return res;
-        }
+        vector<vector<string>> posts;
+        if (!database::client::query("SELECT * FROM posts WHERE id = $1;", {to_string(uuid)}, posts))
+            throw runtime_error(DATABASE_ERROR);
 
-        if (post.empty())
-        {
-            res.result(http::status::not_found);
-            res.body() = nlohmann::json::parse(R"({"message": "Post not found"})").dump();
-            res.prepare_payload();
-            return res;
-        }
+        if (posts.empty())
+            return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
 
+        const auto post = posts[FIRST_OR_ONLY];
         nlohmann::json response = {
             {"id", post[POST_ID_INDEX]},
             {"user_id", post[POST_USER_ID_INDEX]},
@@ -191,47 +118,29 @@ namespace controllers::post
         if (response["type"] == "sale")
         {
             vector<vector<string>> transactions;
-            try
-            {
-                transactions = database::client::query(
-                    "SELECT * FROM transactions WHERE post_id = $1;",
-                    {post_id}
-                );
-            }
-            catch (const std::exception& e)
-            {
-                res.result(http::status::internal_server_error);
-                res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
-                res.prepare_payload();
-                return res;
-            }
+            if (!database::client::query(
+                "SELECT * FROM transactions WHERE post_id = $1;",
+                {post_id}, transactions
+            ))
+                throw runtime_error(DATABASE_ERROR);
 
             if (transactions.empty())
                 response["transaction"] = nlohmann::json();
             else
                 response["transaction"] = {
-                    {"id", transactions[0][TRANSACTION_ID_INDEX]},
-                    {"user_id", transactions[0][TRANSACTION_USER_ID_INDEX]},
-                    {"price", transactions[0][TRANSACTION_PRICE_INDEX]},
+                    {"id", transactions[FIRST_OR_ONLY][TRANSACTION_ID_INDEX]},
+                    {"user_id", transactions[FIRST_OR_ONLY][TRANSACTION_USER_ID_INDEX]},
+                    {"price", transactions[FIRST_OR_ONLY][TRANSACTION_PRICE_INDEX]},
                 };
         }
         else
         {
             vector<vector<string>> bids;
-            try
-            {
-                bids = database::client::query(
-                    "SELECT * FROM bids WHERE post_id = $1 ORDER BY price DESC;",
-                    {post_id}
-                );
-            }
-            catch (const std::exception& e)
-            {
-                res.result(http::status::internal_server_error);
-                res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
-                res.prepare_payload();
-                return res;
-            }
+            if (!database::client::query(
+                "SELECT * FROM bids WHERE post_id = $1 ORDER BY price DESC;",
+                {post_id}, bids
+            ))
+                throw runtime_error(DATABASE_ERROR);
 
             response["bids"] = nlohmann::json::array();
             for (const auto& bid : bids)
@@ -242,151 +151,88 @@ namespace controllers::post
                 });
         }
 
-        res.result(http::status::ok);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
+        return prepare_response(res, http::status::ok, response.dump());
     }
 
     http::response<http::string_body> update(http::request<http::string_body> const& req,
                                              http::response<http::string_body>& res)
     {
-        const auto auth_header = req[http::field::authorization];
-        if (auth_header.empty())
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Authorization header is missing."})").dump();
-            res.prepare_payload();
-            return res;
-        }
-
-        const auto space_pos = auth_header.find(' ');
-        if (space_pos == string::npos)
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid authorization header format."})").dump();
-            res.prepare_payload();
-            return res;
-        }
-
-        const auto data = verify_token(auth_header.substr(space_pos + 1));
-        if (!is_valid_token_data(data))
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid or expired token."})").dump();
-            res.prepare_payload();
-            return res;
-        }
+        nlohmann::json auth;
+        if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
+            return prepare_response(res, http::status::unauthorized, message);
 
         const string post_id = req.target().substr(11);
         boost::uuids::uuid uuid;
-        if (!is_valid_uuid(post_id, uuid) || uuid.version() != UUIDv4)
-        {
-            res.result(http::status::bad_request);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
-            res.prepare_payload();
-            return res;
-        }
+        if (!is_valid_uuid(post_id, uuid))
+            return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
-        auto body = nlohmann::json::parse(req.body());
-        if (!body.contains("title") || !body.contains("description") || !body.contains("price") ||
-            !body.contains("type"))
-        {
-            res.result(http::status::bad_request);
-            res.body() = nlohmann::json::parse(R"({"message": "Missing required fields."})").dump();
-            res.prepare_payload();
-            return res;
-        }
+        vector<vector<string>> posts;
+        if (!database::client::query(
+            "SELECT * FROM posts WHERE id = $1;",
+            {to_string(uuid)}, posts
+        ))
+            throw runtime_error(DATABASE_ERROR);
 
-        const string user_id = data["id"].get<string>();
+        if (posts.empty())
+            return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
+
+        if (const auto post = posts[FIRST_OR_ONLY]; post[POST_USER_ID_INDEX] != auth["id"].get<string>())
+            return prepare_response(res, http::status::forbidden, R"({"message": "You are not authorized to update this post"})");
+
+        nlohmann::json body;
+        if (string message; is_malformed_body(req.body(), {"title", "description", "price", "type"}, message, body))
+            return prepare_response(res, http::status::bad_request, message);
+
+        double price;
+        if (string message; !is_valid_price(body["price"], message, price))
+            return prepare_response(res, http::status::bad_request, message);
+
+        const string user_id = auth["id"].get<string>();
         const string title = body["title"].get<string>();
         const string description = body["description"].get<string>();
-        const double price = body["price"].get<double>();
         const string type = body["type"].get<string>();
 
-        try
-        {
-            const auto result = database::client::query(
-                "UPDATE posts SET title = $1, description = $2, price = $3, type = $4 WHERE id = $5 AND user_id = $6;",
-                {title, description, to_string(price), type, to_string(uuid), user_id}
-            );
-        }
-        catch (const std::exception& e)
-        {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
-            res.prepare_payload();
-            return res;
-        }
+        if (vector<vector<string>> update_result; !database::client::query(
+            "UPDATE posts SET title = $1, description = $2, price = $3, type = $4 WHERE id = $5 AND user_id = $6;",
+            {title, description, to_string(price), type, to_string(uuid), user_id},
+            update_result
+        ))
+            throw runtime_error(DATABASE_ERROR);
 
-        nlohmann::json response;
-        response["message"] = "Post updated successfully";
-        res.result(http::status::ok);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
+        return prepare_response(res, http::status::ok, R"({"message": "Post updated successfully"})");
     }
 
     http::response<http::string_body> delete_(http::request<http::string_body> const& req,
                                               http::response<http::string_body>& res)
     {
-        const auto auth_header = req[http::field::authorization];
-        if (auth_header.empty())
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Authorization header is missing."})").dump();
-            res.prepare_payload();
-            return res;
-        }
-
-        const auto space_pos = auth_header.find(' ');
-        if (space_pos == string::npos)
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid authorization header format."})").dump();
-            res.prepare_payload();
-            return res;
-        }
-
-        const auto data = verify_token(auth_header.substr(space_pos + 1));
-        if (!is_valid_token_data(data))
-        {
-            res.result(http::status::unauthorized);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid or expired token."})").dump();
-            res.prepare_payload();
-            return res;
-        }
+        nlohmann::json auth;
+        if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
+            return prepare_response(res, http::status::unauthorized, message);
 
         const string post_id = req.target().substr(11);
         boost::uuids::uuid uuid;
-        if (!is_valid_uuid(post_id, uuid) || uuid.version() != UUIDv4)
-        {
-            res.result(http::status::bad_request);
-            res.body() = nlohmann::json::parse(R"({"message": "Invalid Post ID format"})").dump();
-            res.prepare_payload();
-            return res;
-        }
+        if (!is_valid_uuid(post_id, uuid))
+            return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
-        try
-        {
-            const auto result = database::client::query(
-                "UPDATE posts SET status = 'inactive' WHERE id = $1 AND user_id = $2;",
-                {to_string(uuid), data["id"]}
-            );
-        }
-        catch (const std::exception& e)
-        {
-            res.result(http::status::internal_server_error);
-            res.body() = R"({"message": "Database error: )" + string(e.what()) + R"("})";
-            res.prepare_payload();
-            return res;
-        }
+        vector<vector<string>> posts;
+        if (!database::client::query(
+            "SELECT * FROM posts WHERE id = $1;",
+            {to_string(uuid)}, posts
+        ))
+            throw runtime_error(DATABASE_ERROR);
 
-        nlohmann::json response;
-        response["message"] = "Post deleted successfully";
-        res.result(http::status::ok);
-        res.body() = response.dump();
-        res.prepare_payload();
-        return res;
+        if (posts.empty())
+            return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
+
+        if (const auto post = posts[FIRST_OR_ONLY]; post[POST_USER_ID_INDEX] != auth["id"].get<string>())
+            return prepare_response(res, http::status::forbidden, R"({"message": "You are not authorized to update this post"})");
+
+        if (vector<vector<string>> update_result; !database::client::query(
+            "UPDATE posts SET status = 'inactive' WHERE id = $1 AND user_id = $2;",
+            {to_string(uuid), auth["id"].get<string>()}, update_result
+        ))
+            throw runtime_error(DATABASE_ERROR);
+
+        return prepare_response(res, http::status::ok, R"({"message": "Post deleted successfully"})");
     }
 }
