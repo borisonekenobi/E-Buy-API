@@ -59,7 +59,6 @@ namespace database::client
             if (sqlite3_open("database.db", &db))
             {
                 cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
-                exit(EXIT_FAILURE);
             }
             results = executeQuery(db, prepared_query);
             sqlite3_close(db);
@@ -81,7 +80,6 @@ namespace database::client
         if (sqlite3_open("database.db", &db))
         {
             cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
-            exit(EXIT_FAILURE);
         }
         return db;
     }
