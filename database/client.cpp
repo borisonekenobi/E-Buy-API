@@ -25,10 +25,7 @@ namespace database::client
             res->push_back(row);
             return 0;
         }, &results, &errMsg) != SQLITE_OK)
-        {
-            cerr << "Error executing query: " << errMsg << endl;
-            sqlite3_free(errMsg);
-        }
+            throw runtime_error(errMsg);
 
         return results;
     }
@@ -49,31 +46,20 @@ namespace database::client
 
     // Executes a query on the database and returns the results.
     // WARNING: This function is not safe from SQL injection attacks.
-    bool query(const string& query, const vector<string>& params, vector<vector<string>>& results)
+    vector<vector<string>> query(const string& query, const vector<string>& params)
     {
-        try
-        {
-            const string prepared_query = prepare_query(query, params);
+        const string prepared_query = prepare_query(query, params);
 
-            sqlite3* db;
-            if (sqlite3_open("database.db", &db))
-            {
-                cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
-            }
-            results = executeQuery(db, prepared_query);
-            sqlite3_close(db);
+        sqlite3* db;
+        if (sqlite3_open("database.db", &db))
+            throw runtime_error(sqlite3_errmsg(db));
 
-            return true;
-        }
-        catch (const exception& e)
-        {
-            cerr << "Error executing query: " << e.what() << endl;
-            return false;
-        }
+        auto results = executeQuery(db, prepared_query);
+        sqlite3_close(db);
+        return results;
     }
 
     //transactions
-
     sqlite3* open_connection()
     {
         sqlite3* db;

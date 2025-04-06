@@ -62,28 +62,12 @@ static void print_status(http::request<http::string_body> const& req,
 static http::response<http::string_body> handle_request(http::request<http::string_body> const& req,
                                                         http::response<http::string_body>& res)
 {
-	try
-	{
-		if (req.method() == http::verb::options)
-		{
-			print_status(req, res, 0ll);
-			return prepare_response(res, http::status::no_content, "");
-		}
+	if (req.method() == http::verb::options)
+		return prepare_response(res, http::status::no_content, "");
 
-		const auto now = chrono::system_clock::now();
+	if (req.target().starts_with("/api")) res = routers::api::handle_request(req, res);
 
-		if (req.target().starts_with("/api")) res = routers::api::handle_request(req, res);
-
-		const auto elapsed = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - now).count();
-		print_status(req, res, elapsed);
-		return res;
-	}
-	catch (const exception& e)
-	{
-		cerr << "Error: " << e.what() << endl;
-		print_status(req, res, 0);
-		return prepare_response(res, http::status::internal_server_error, INTERNAL_SERVER_ERROR);
-	}
+	return res;
 }
 
 class Session : public enable_shared_from_this<Session>
@@ -109,6 +93,7 @@ private:
 		{
 			if (!ec)
 			{
+				const auto now = chrono::system_clock::now();
 				http::response<http::string_body> res{http::status::ok, req_.version()};
 				res.set(http::field::server, "Beast");
 				res.set(http::field::content_type, "application/json");
@@ -116,8 +101,20 @@ private:
 				res.set(http::field::access_control_allow_methods, "GET, POST, PUT, DELETE, OPTIONS");
 				res.set(http::field::access_control_allow_headers, "Content-Type, Authorization");
 				res.keep_alive(req_.keep_alive());
+				try
+				{
+					res = handle_request(req_, res);
+				}
+				catch (const exception& e)
+				{
+					cerr << "Error: " << e.what() << endl;
+					res = prepare_response(res, http::status::internal_server_error, INTERNAL_SERVER_ERROR);
+				}
 
-				do_write(handle_request(req_, res));
+				const auto elapsed = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - now).
+					count();
+				print_status(req_, res, elapsed);
+				do_write(res);
 			}
 		});
 	}

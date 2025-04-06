@@ -18,17 +18,16 @@ namespace controllers::authentication
         if (string message; is_malformed_body(req.body(), {"name", "username", "password"}, message, body))
             return prepare_response(res, http::status::bad_request, message);
 
-        vector<vector<string>> users;
-        if (!database::client::query("SELECT * FROM users WHERE username = $1", {body["username"].get<string>()},
-                                     users))
-            throw runtime_error(DATABASE_ERROR);
-
+        auto users = database::client::query(
+            "SELECT * FROM users WHERE username = $1",
+            {body["username"].get<string>()}
+        );
         if (!users.empty())
             return prepare_response(res, http::status::conflict, R"({"message": "Username already exists"})");
 
         string salt;
         const auto hashed = ::hash(body["password"].get<string>(), salt);
-        if (vector<vector<string>> insert_result; !database::client::query(
+        auto insert_result = database::client::query(
             "INSERT INTO users (id, name, username, password, salt, type, status) VALUES ($1, $2, $3, $4, $5, $6, $7)",
             {
                 to_string(gen_uuid()),
@@ -38,10 +37,8 @@ namespace controllers::authentication
                 salt,
                 "standard",
                 "active"
-            },
-            insert_result
-        ))
-            throw runtime_error(DATABASE_ERROR);
+            }
+        );
 
         return prepare_response(res, http::status::created, R"({"message": "User created successfully"})");
     }
@@ -57,12 +54,10 @@ namespace controllers::authentication
         if (string message; is_malformed_body(req.body(), {"password", "new_password"}, message, body))
             return prepare_response(res, http::status::bad_request, message);
 
-        vector<vector<string>> users;
-        if (!database::client::query("SELECT * FROM users WHERE id = $1 AND status = 'active'",
-                                     {auth["id"].get<string>()},
-                                     users
-        ))
-            throw runtime_error(DATABASE_ERROR);
+        auto users = database::client::query(
+            "SELECT * FROM users WHERE id = $1 AND status = 'active'",
+            {auth["id"].get<string>()}
+        );
 
         if (users.empty())
             return prepare_response(res, http::status::not_found, R"({"message": "User not found"})");
@@ -74,12 +69,10 @@ namespace controllers::authentication
         if (hashed != user[USER_PASSWORD_INDEX])
             return prepare_response(res, http::status::unauthorized, R"({"message": "Invalid password"})");
 
-        if (vector<vector<string>> update_result; !database::client::query(
+        auto update_result = database::client::query(
             "UPDATE users SET password = $1 WHERE id = $2",
-            {new_hashed, auth["id"].get<std::string>()},
-            update_result
-        ))
-            throw runtime_error(DATABASE_ERROR);
+            {new_hashed, auth["id"].get<std::string>()}
+        );
 
         return prepare_response(res, http::status::ok, R"({"message": "Password changed successfully"})");
     }
@@ -91,12 +84,10 @@ namespace controllers::authentication
         if (string message; is_malformed_body(req.body(), {"username", "password"}, message, body))
             return prepare_response(res, http::status::bad_request, message);
 
-        vector<vector<string>> users;
-        if (!database::client::query("SELECT * FROM users WHERE username = $1 AND status = 'active'",
-                                     {body["username"].get<string>()},
-                                     users
-        ))
-            throw runtime_error(DATABASE_ERROR);
+        auto users = database::client::query(
+            "SELECT * FROM users WHERE username = $1 AND status = 'active'",
+            {body["username"].get<string>()}
+        );
 
         if (users.empty())
             return prepare_response(res, http::status::not_found, INVALID_USERNAME_PASSWORD);

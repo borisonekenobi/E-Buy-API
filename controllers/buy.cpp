@@ -23,13 +23,10 @@ namespace controllers::post
         if (!is_valid_uuid(post_id, uuid))
             return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
-        vector<vector<string>> posts;
-        if (!database::client::query(
+        auto posts = database::client::query(
             "SELECT * FROM posts WHERE id = $1 AND status = 'active';",
-            {to_string(uuid)}, posts
-        ))
-            throw runtime_error(DATABASE_ERROR);
-
+            {to_string(uuid)}
+        );
         if (posts.empty())
             return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
 

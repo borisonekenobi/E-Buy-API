@@ -34,13 +34,10 @@ namespace controllers::post
         const string type = body["type"].get<string>();
         const string status = "active";
 
-        if (vector<vector<string>> result; !database::client::query(
+        auto result = database::client::query(
             "INSERT INTO posts (id, user_id, title, description, price, type, status) VALUES ($1, $2, $3, $4, $5, $6, $7);",
-            {uuid, user_id, title, description, to_string(price), type, status},
-            result
-        ))
-            throw runtime_error(DATABASE_ERROR);
-
+            {uuid, user_id, title, description, to_string(price), type, status}
+        );
         nlohmann::json response;
         response["message"] = "Post created successfully";
         response["post"] = {
@@ -60,13 +57,10 @@ namespace controllers::post
                                            http::response<http::string_body>& res)
     {
         const auto type = req.target().substr(11);
-        vector<vector<string>> posts;
-        if (!database::client::query(
+        auto posts = database::client::query(
             "SELECT * FROM posts WHERE status = 'active' AND type = $1 ORDER BY random() LIMIT 10;",
-            {type},
-            posts
-        ))
-            throw runtime_error(DATABASE_ERROR);
+            {type}
+        );
 
         if (posts.empty())
             return prepare_response(res, http::status::not_found, nlohmann::json::array().dump());
@@ -97,10 +91,7 @@ namespace controllers::post
         if (!is_valid_uuid(post_id, uuid))
             return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
-        vector<vector<string>> posts;
-        if (!database::client::query("SELECT * FROM posts WHERE id = $1;", {to_string(uuid)}, posts))
-            throw runtime_error(DATABASE_ERROR);
-
+        auto posts = database::client::query("SELECT * FROM posts WHERE id = $1;", {to_string(uuid)});
         if (posts.empty())
             return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
 
@@ -117,13 +108,10 @@ namespace controllers::post
 
         if (response["type"] == "sale")
         {
-            vector<vector<string>> transactions;
-            if (!database::client::query(
+            auto transactions = database::client::query(
                 "SELECT * FROM transactions WHERE post_id = $1;",
-                {post_id}, transactions
-            ))
-                throw runtime_error(DATABASE_ERROR);
-
+                {post_id}
+            );
             if (transactions.empty())
                 response["transaction"] = nlohmann::json();
             else
@@ -135,13 +123,10 @@ namespace controllers::post
         }
         else
         {
-            vector<vector<string>> bids;
-            if (!database::client::query(
+            auto bids = database::client::query(
                 "SELECT * FROM bids WHERE post_id = $1 ORDER BY price DESC;",
-                {post_id}, bids
-            ))
-                throw runtime_error(DATABASE_ERROR);
-
+                {post_id}
+            );
             response["bids"] = nlohmann::json::array();
             for (const auto& bid : bids)
                 response["bids"].push_back({
@@ -166,17 +151,14 @@ namespace controllers::post
         if (!is_valid_uuid(post_id, uuid))
             return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
-        vector<vector<string>> posts;
-        if (!database::client::query(
+        auto posts = database::client::query(
             "SELECT * FROM posts WHERE id = $1;",
-            {to_string(uuid)}, posts
-        ))
-            throw runtime_error(DATABASE_ERROR);
-
+            {to_string(uuid)}
+        );
         if (posts.empty())
             return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
 
-        if (const auto post = posts[FIRST_OR_ONLY]; post[POST_USER_ID_INDEX] != auth["id"].get<string>())
+        if (const auto& post = posts[FIRST_OR_ONLY]; post[POST_USER_ID_INDEX] != auth["id"].get<string>())
             return prepare_response(res, http::status::forbidden, R"({"message": "You are not authorized to update this post"})");
 
         nlohmann::json body;
@@ -192,12 +174,10 @@ namespace controllers::post
         const string description = body["description"].get<string>();
         const string type = body["type"].get<string>();
 
-        if (vector<vector<string>> update_result; !database::client::query(
+        auto update_result = database::client::query(
             "UPDATE posts SET title = $1, description = $2, price = $3, type = $4 WHERE id = $5 AND user_id = $6;",
-            {title, description, to_string(price), type, to_string(uuid), user_id},
-            update_result
-        ))
-            throw runtime_error(DATABASE_ERROR);
+            {title, description, to_string(price), type, to_string(uuid), user_id}
+        );
 
         return prepare_response(res, http::status::ok, R"({"message": "Post updated successfully"})");
     }
@@ -214,24 +194,20 @@ namespace controllers::post
         if (!is_valid_uuid(post_id, uuid))
             return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
-        vector<vector<string>> posts;
-        if (!database::client::query(
+        const auto posts = database::client::query(
             "SELECT * FROM posts WHERE id = $1;",
-            {to_string(uuid)}, posts
-        ))
-            throw runtime_error(DATABASE_ERROR);
-
+            {to_string(uuid)}
+        );
         if (posts.empty())
             return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
 
-        if (const auto post = posts[FIRST_OR_ONLY]; post[POST_USER_ID_INDEX] != auth["id"].get<string>())
+        if (const auto& post = posts[FIRST_OR_ONLY]; post[POST_USER_ID_INDEX] != auth["id"].get<string>())
             return prepare_response(res, http::status::forbidden, R"({"message": "You are not authorized to update this post"})");
 
-        if (vector<vector<string>> update_result; !database::client::query(
+        auto update_result = database::client::query(
             "UPDATE posts SET status = 'inactive' WHERE id = $1 AND user_id = $2;",
-            {to_string(uuid), auth["id"].get<string>()}, update_result
-        ))
-            throw runtime_error(DATABASE_ERROR);
+            {to_string(uuid), auth["id"].get<string>()}
+        );
 
         return prepare_response(res, http::status::ok, R"({"message": "Post deleted successfully"})");
     }

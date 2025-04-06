@@ -31,13 +31,10 @@ namespace controllers::post
         if (string message; !is_valid_price(body["price"], message, price))
             return prepare_response(res, http::status::bad_request, message);
 
-        vector<vector<string>> posts;
-        if (!database::client::query(
+        auto posts = database::client::query(
             "SELECT * FROM posts WHERE id = $1 AND status = 'active';",
-            {to_string(uuid)}, posts
-        ))
-            throw runtime_error(DATABASE_ERROR);
-
+            {to_string(uuid)}
+        );
         if (posts.empty())
             return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
 
@@ -58,20 +55,15 @@ namespace controllers::post
             {"bids", nlohmann::json::array()}
         };
 
-        if (vector<vector<string>> insert_results; !database::client::query(
+        auto insert_results = database::client::query(
             "INSERT INTO bids (id, user_id, post_id, price) VALUES ($1, $2, $3, $4);",
-            {to_string(gen_uuid()), auth["id"].get<string>(), to_string(uuid), to_string(price)},
-            insert_results
-        ))
-            throw runtime_error(DATABASE_ERROR);
+            {to_string(gen_uuid()), auth["id"].get<string>(), to_string(uuid), to_string(price)}
+        );
 
-        vector<vector<string>> bids;
-        if (!database::client::query(
+        auto bids = database::client::query(
             "SELECT * FROM bids WHERE post_id = $1 ORDER BY price DESC;",
-            {to_string(uuid)}, bids
-        ))
-            throw runtime_error(DATABASE_ERROR);
-
+            {to_string(uuid)}
+        );
         for (const auto& bid : bids)
             response["post"]["bids"].push_back({
                 {"id", bid[BID_ID_INDEX]},
