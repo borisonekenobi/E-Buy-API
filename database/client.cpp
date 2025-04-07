@@ -1,12 +1,14 @@
-#include <iostream>
-
 #include "client.h"
+
+#include <format>
+#include <iostream>
+#include <sqlite3.h>
 
 using namespace std;
 
-namespace database
+namespace database::client
 {
-    vector<vector<string>> client::executeQuery(sqlite3* db, const string& query)
+    vector<vector<string>> executeQuery(sqlite3* db, const string& query)
     {
         char* errMsg = nullptr;
         vector<vector<string>> results;
@@ -23,25 +25,59 @@ namespace database
             res->push_back(row);
             return 0;
         }, &results, &errMsg) != SQLITE_OK)
-        {
-            cerr << "Error executing query: " << errMsg << endl;
-            sqlite3_free(errMsg);
-        }
+            throw runtime_error(errMsg);
 
         return results;
     }
 
-    vector<vector<string>> client::query(const string& query)
+    string prepare_query(const string& query, const vector<string>& params)
+    {
+        string prepared_query = query;
+        for (int i = 0; i < params.size(); i++)
+        {
+            const string& param = params[i];
+            if (const size_t pos = prepared_query.find(format("${}", i + 1)); pos != string::npos)
+            {
+                prepared_query.replace(pos, 2, "'" + param + "'");
+            }
+        }
+        return prepared_query;
+    }
+
+    // Executes a query on the database and returns the results.
+    // WARNING: This function is not safe from SQL injection attacks.
+    vector<vector<string>> query(const string& query, const vector<string>& params)
+    {
+        const string prepared_query = prepare_query(query, params);
+
+        sqlite3* db;
+        if (sqlite3_open("database.db", &db))
+            throw runtime_error(sqlite3_errmsg(db));
+
+        auto results = executeQuery(db, prepared_query);
+        sqlite3_close(db);
+        return results;
+    }
+
+    //transactions
+    sqlite3* open_connection()
     {
         sqlite3* db;
         if (sqlite3_open("database.db", &db))
         {
             cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
-            exit(EXIT_FAILURE);
         }
-        const vector<vector<string>> query_results = executeQuery(db, query);
-        sqlite3_close(db);
+        return db;
+    }
 
-        return query_results;
+    void close_connection(sqlite3* db)
+    {
+        sqlite3_close(db);
+    }
+
+    vector<vector<string>> transactional_query(sqlite3* db, const string& query, const vector<string>& params)
+    {
+        const string prepared_query = prepare_query(query, params);
+        return executeQuery(db, prepared_query);
     }
 }

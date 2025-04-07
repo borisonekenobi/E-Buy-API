@@ -1,18 +1,18 @@
 #pragma once
 
 #include <string>
+
+#include <jwt-cpp/jwt.h> // Do not remove!
+
 #include <nlohmann/json.hpp>
-#include <jwt-cpp/jwt.h>
 
 using namespace std;
 
-constexpr auto jwtExpireTime = chrono::seconds(60 * 60 * 1000); // 1 hour
+constexpr auto jwtExpireTime = chrono::hours(1);
+constexpr auto jwtRefreshExpireTime = chrono::days(30);
 
-class AuthenticationFunctions
-{
-public:
-    static void init();
-    static tuple<string, string> hash(const string& data, const string& salt);
-    static string generateAccessToken(const nlohmann::basic_json<>& data);
-    static nlohmann::basic_json<> verifyToken(const string& token);
-};
+void initialize_auth();
+string hash(const string& data, string& salt);
+string generate_access_token(const nlohmann::basic_json<>& data);
+string generate_refresh_token(const nlohmann::basic_json<>& data);
+nlohmann::basic_json<> verify_token(const string& token);
