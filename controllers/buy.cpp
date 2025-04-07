@@ -18,13 +18,13 @@ namespace controllers::post
             return prepare_response(res, http::status::unauthorized, message);
 
         const string post_id = req.target().substr(15);
-        boost::uuids::uuid uuid;
-        if (!is_valid_uuid(post_id, uuid))
+        boost::uuids::uuid post_uuid;
+        if (!is_valid_uuid(post_id, post_uuid))
             return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
         const auto posts = database::client::query(
             "SELECT * FROM posts WHERE id = $1 AND status = 'active';",
-            {to_string(uuid)}
+            {to_string(post_uuid)}
         );
         if (posts.empty())
             return prepare_response(res, http::status::not_found, R"({"message": "Post not found"})");
@@ -33,6 +33,7 @@ namespace controllers::post
         if (post[POST_TYPE_INDEX] != "sale")
             return prepare_response(res, http::status::forbidden, R"({"message": "This post is not for sale"})");
 
+        const auto uuid = gen_uuid();
         sqlite3* db = database::client::open_connection();
         try
         {
@@ -42,12 +43,12 @@ namespace controllers::post
             database::client::transactional_query(
                 db,
                 "INSERT INTO transactions (id, user_id, post_id, price) VALUES ($1, $2, $3, $4);",
-                {to_string(gen_uuid()), auth["id"].get<string>(), to_string(uuid), post[POST_PRICE_INDEX]}
+                {to_string(uuid), auth["id"].get<string>(), to_string(post_uuid), post[POST_PRICE_INDEX]}
             );
             database::client::transactional_query(
                 db,
                 "UPDATE posts SET status = 'sold' WHERE id = $1;",
-                {to_string(uuid)}
+                {to_string(post_uuid)}
             );
             database::client::transactional_query(db, "COMMIT TRANSACTION;", {});
             database::client::close_connection(db);
@@ -82,7 +83,7 @@ namespace controllers::post
             {"status", "sold"},
             {
                 "transaction", {
-                    {"id", to_string(gen_uuid())},
+                    {"id", to_string(uuid)},
                     {"user_id", auth["id"].get<string>()},
                     {"price", post[POST_PRICE_INDEX]},
                 }
