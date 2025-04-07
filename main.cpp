@@ -59,15 +59,14 @@ static void print_status(http::request<http::string_body> const& req,
 	cout << " " << elapsed << " ms - " << payload_size << endl;
 }
 
-static http::response<http::string_body> handle_request(http::request<http::string_body> const& req,
-                                                        http::response<http::string_body>& res)
+void handle_request(http::request<http::string_body> const& req, http::response<http::string_body>& res)
 {
 	if (req.method() == http::verb::options)
 		return prepare_response(res, http::status::no_content, "");
 
-	if (req.target().starts_with("/api")) res = routers::api::handle_request(req, res);
+	if (req.target().starts_with("/api")) return routers::api::handle_request(req, res);
 
-	return res;
+	prepare_response(res, http::status::not_found, "");
 }
 
 class Session : public enable_shared_from_this<Session>
@@ -103,16 +102,17 @@ private:
 				res.keep_alive(req_.keep_alive());
 				try
 				{
-					res = handle_request(req_, res);
+					handle_request(req_, res);
 				}
 				catch (const exception& e)
 				{
 					cerr << "Error: " << e.what() << endl;
-					res = prepare_response(res, http::status::internal_server_error, INTERNAL_SERVER_ERROR);
+					prepare_response(res, http::status::internal_server_error, R"({"message": "Internal server error"})");
 				}
 
-				const auto elapsed = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - now).
-					count();
+				const auto elapsed = chrono::duration_cast<chrono::milliseconds>(
+					chrono::system_clock::now() - now
+				).count();
 				print_status(req_, res, elapsed);
 				do_write(res);
 			}

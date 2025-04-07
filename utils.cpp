@@ -193,11 +193,9 @@ bool is_valid_price(const nlohmann::basic_json<>& price, string& err_message, do
     return false;
 }
 
-http::response<http::string_body> prepare_response(http::response<http::string_body>& res, const http::status status,
-                                                   const string& body)
+void prepare_response(http::response<http::string_body>& res, const http::status status, const string& body)
 {
     res.result(status);
     res.body() = body;
     res.prepare_payload();
-    return res;
 }

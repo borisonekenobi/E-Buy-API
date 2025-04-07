@@ -11,8 +11,7 @@ using namespace std;
 
 namespace controllers::post
 {
-    http::response<http::string_body> buy(http::request<http::string_body> const& req,
-                                          http::response<http::string_body>& res)
+    void buy(http::request<http::string_body> const& req, http::response<http::string_body>& res)
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
@@ -23,7 +22,7 @@ namespace controllers::post
         if (!is_valid_uuid(post_id, uuid))
             return prepare_response(res, http::status::bad_request, R"({"message": "Invalid Post ID format"})");
 
-        auto posts = database::client::query(
+        const auto posts = database::client::query(
             "SELECT * FROM posts WHERE id = $1 AND status = 'active';",
             {to_string(uuid)}
         );
@@ -68,7 +67,7 @@ namespace controllers::post
             {
             }
 
-            throw runtime_error(DATABASE_ERROR);
+            throw;
         }
 
         nlohmann::json response;
@@ -90,6 +89,6 @@ namespace controllers::post
             }
         };
 
-        return prepare_response(res, http::status::ok, response.dump());
+        prepare_response(res, http::status::ok, response.dump());
     }
 }

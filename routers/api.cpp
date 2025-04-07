@@ -1,5 +1,6 @@
 #include "api.h"
 
+#include "../utils.h"
 #include "../controllers/authentication.h"
 #include "../controllers/post.h"
 
@@ -7,8 +8,7 @@ namespace http = boost::beast::http;
 
 namespace routers::api
 {
-	http::response<http::string_body> handle_request(http::request<http::string_body> const& req,
-	                                                 http::response<http::string_body>& res)
+	void handle_request(http::request<http::string_body> const& req, http::response<http::string_body>& res)
 	{
 		if (req.method() == http::verb::post && req.target() == "/api/sign-up")
 			return controllers::authentication::sign_up(req, res);
@@ -38,6 +38,6 @@ namespace routers::api
 		if (req.method() == http::verb::delete_ && req.target().starts_with("/api/posts/"))
 			return controllers::post::delete_(req, res);
 
-		return http::response<http::string_body>{http::status::not_found, req.version()};
+		prepare_response(res, http::status::not_found, "");
 	}
 }

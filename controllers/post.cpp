@@ -12,8 +12,7 @@ using namespace std;
 
 namespace controllers::post
 {
-    http::response<http::string_body> create(http::request<http::string_body> const& req,
-                                             http::response<http::string_body>& res)
+    void create(http::request<http::string_body> const& req, http::response<http::string_body>& res)
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
@@ -50,11 +49,10 @@ namespace controllers::post
             {"status", status}
         };
 
-        return prepare_response(res, http::status::created, response.dump());
+        prepare_response(res, http::status::created, response.dump());
     }
 
-    http::response<http::string_body> find(http::request<http::string_body> const& req,
-                                           http::response<http::string_body>& res)
+    void find(http::request<http::string_body> const& req, http::response<http::string_body>& res)
     {
         const auto type = req.target().substr(11);
         auto posts = database::client::query(
@@ -77,11 +75,10 @@ namespace controllers::post
                 {"status", post[POST_STATUS_INDEX]},
             });
 
-        return prepare_response(res, http::status::ok, response.dump());
+        prepare_response(res, http::status::ok, response.dump());
     }
 
-    http::response<http::string_body> find_one(http::request<http::string_body> const& req,
-                                               http::response<http::string_body>& res)
+    void find_one(http::request<http::string_body> const& req, http::response<http::string_body>& res)
     {
         const string post_id = req.target().substr(11);
         if (post_id.empty())
@@ -136,11 +133,10 @@ namespace controllers::post
                 });
         }
 
-        return prepare_response(res, http::status::ok, response.dump());
+        prepare_response(res, http::status::ok, response.dump());
     }
 
-    http::response<http::string_body> update(http::request<http::string_body> const& req,
-                                             http::response<http::string_body>& res)
+    void update(http::request<http::string_body> const& req, http::response<http::string_body>& res)
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
@@ -179,11 +175,10 @@ namespace controllers::post
             {title, description, to_string(price), type, to_string(uuid), user_id}
         );
 
-        return prepare_response(res, http::status::ok, R"({"message": "Post updated successfully"})");
+        prepare_response(res, http::status::ok, R"({"message": "Post updated successfully"})");
     }
 
-    http::response<http::string_body> delete_(http::request<http::string_body> const& req,
-                                              http::response<http::string_body>& res)
+    void delete_(http::request<http::string_body> const& req, http::response<http::string_body>& res)
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
@@ -209,6 +204,6 @@ namespace controllers::post
             {to_string(uuid), auth["id"].get<string>()}
         );
 
-        return prepare_response(res, http::status::ok, R"({"message": "Post deleted successfully"})");
+        prepare_response(res, http::status::ok, R"({"message": "Post deleted successfully"})");
     }
 }

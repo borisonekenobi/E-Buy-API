@@ -11,14 +11,13 @@
 
 namespace controllers::authentication
 {
-    http::response<http::string_body> sign_up(http::request<http::string_body> const& req,
-                                              http::response<http::string_body>& res)
+    void sign_up(http::request<http::string_body> const& req, http::response<http::string_body>& res)
     {
         nlohmann::json body;
         if (string message; is_malformed_body(req.body(), {"name", "username", "password"}, message, body))
             return prepare_response(res, http::status::bad_request, message);
 
-        auto users = database::client::query(
+        const auto users = database::client::query(
             "SELECT * FROM users WHERE username = $1",
             {body["username"].get<string>()}
         );
@@ -40,11 +39,10 @@ namespace controllers::authentication
             }
         );
 
-        return prepare_response(res, http::status::created, R"({"message": "User created successfully"})");
+        prepare_response(res, http::status::created, R"({"message": "User created successfully"})");
     }
 
-    http::response<http::string_body> change_password(http::request<http::string_body> const& req,
-                                                      http::response<http::string_body>& res)
+    void change_password(http::request<http::string_body> const& req, http::response<http::string_body>& res)
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
@@ -54,7 +52,7 @@ namespace controllers::authentication
         if (string message; is_malformed_body(req.body(), {"password", "new_password"}, message, body))
             return prepare_response(res, http::status::bad_request, message);
 
-        auto users = database::client::query(
+        const auto users = database::client::query(
             "SELECT * FROM users WHERE id = $1 AND status = 'active'",
             {auth["id"].get<string>()}
         );
@@ -74,21 +72,19 @@ namespace controllers::authentication
             {new_hashed, auth["id"].get<std::string>()}
         );
 
-        return prepare_response(res, http::status::ok, R"({"message": "Password changed successfully"})");
+        prepare_response(res, http::status::ok, R"({"message": "Password changed successfully"})");
     }
 
-    http::response<http::string_body> sign_in(http::request<http::string_body> const& req,
-                                              http::response<http::string_body>& res)
+    void sign_in(http::request<http::string_body> const& req, http::response<http::string_body>& res)
     {
         nlohmann::json body;
         if (string message; is_malformed_body(req.body(), {"username", "password"}, message, body))
             return prepare_response(res, http::status::bad_request, message);
 
-        auto users = database::client::query(
+        const auto users = database::client::query(
             "SELECT * FROM users WHERE username = $1 AND status = 'active'",
             {body["username"].get<string>()}
         );
-
         if (users.empty())
             return prepare_response(res, http::status::not_found, INVALID_USERNAME_PASSWORD);
 
@@ -108,11 +104,10 @@ namespace controllers::authentication
         const nlohmann::json refresh = {{"type", "refresh"}, {"user", response["user"]}};
         response["access"] = generate_access_token(response["user"]);
         response["refresh"] = generate_refresh_token(refresh);
-        return prepare_response(res, http::status::ok, response.dump());
+        prepare_response(res, http::status::ok, response.dump());
     }
 
-    http::response<http::string_body> renew_tokens(http::request<http::string_body> const& req,
-                                                   http::response<http::string_body>& res)
+    void renew_tokens(http::request<http::string_body> const& req, http::response<http::string_body>& res)
     {
         nlohmann::json auth;
         if (string message; is_malformed_renew(req[http::field::authorization], message, auth))
@@ -121,6 +116,6 @@ namespace controllers::authentication
         nlohmann::json response;
         response["access"] = generate_access_token(auth["user"].get<nlohmann::json>());
         response["refresh"] = generate_refresh_token(auth);
-        return prepare_response(res, http::status::ok, response.dump());
+        prepare_response(res, http::status::ok, response.dump());
     }
 }

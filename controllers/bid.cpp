@@ -11,8 +11,7 @@ using namespace std;
 
 namespace controllers::post
 {
-    http::response<http::string_body> bid(http::request<http::string_body> const& req,
-                                          http::response<http::string_body>& res)
+    void bid(http::request<http::string_body> const& req, http::response<http::string_body>& res)
     {
         nlohmann::json auth;
         if (string message; is_malformed_auth(req[http::field::authorization], message, auth))
@@ -71,6 +70,6 @@ namespace controllers::post
                 {"price", bid[BID_PRICE_INDEX]},
             });
 
-        return prepare_response(res, http::status::ok, response.dump());
+        prepare_response(res, http::status::ok, response.dump());
     }
 }
