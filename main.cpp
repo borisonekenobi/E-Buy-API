@@ -8,6 +8,7 @@
 #include <boost/beast/http.hpp>
 
 #include "authentication-functions.h"
+#include "utils.h"
 
 #include "routers/api.h"
 
@@ -58,35 +59,14 @@ static void print_status(http::request<http::string_body> const& req,
 	cout << " " << elapsed << " ms - " << payload_size << endl;
 }
 
-static http::response<http::string_body> handle_request(http::request<http::string_body> const& req,
-                                                        http::response<http::string_body>& res)
+void handle_request(http::request<http::string_body> const& req, http::response<http::string_body>& res)
 {
-	try
-	{
-		if (req.method() == http::verb::options)
-		{
-			res.result(http::status::no_content);
-			res.prepare_payload();
-			return res;
-		}
-		
-		const auto now = chrono::system_clock::now();
+	if (req.method() == http::verb::options)
+		return prepare_response(res, http::status::no_content, "");
 
-		if (req.target().starts_with("/api")) res = routers::api::handle_request(req, res);
+	if (req.target().starts_with("/api")) return routers::api::handle_request(req, res);
 
-		const auto elapsed = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - now).count();
-		print_status(req, res, elapsed);
-		return res;
-	}
-	catch (const exception& e)
-	{
-		cerr << "Error: " << e.what() << endl;
-		res.result(http::status::internal_server_error);
-		res.body() = R"({"message": "Internal Server Error"})";
-		res.prepare_payload();
-		print_status(req, res, 0);
-		return res;
-	}
+	prepare_response(res, http::status::not_found, "");
 }
 
 class Session : public enable_shared_from_this<Session>
@@ -112,6 +92,7 @@ private:
 		{
 			if (!ec)
 			{
+				const auto now = chrono::system_clock::now();
 				http::response<http::string_body> res{http::status::ok, req_.version()};
 				res.set(http::field::server, "Beast");
 				res.set(http::field::content_type, "application/json");
@@ -119,8 +100,21 @@ private:
 				res.set(http::field::access_control_allow_methods, "GET, POST, PUT, DELETE, OPTIONS");
 				res.set(http::field::access_control_allow_headers, "Content-Type, Authorization");
 				res.keep_alive(req_.keep_alive());
+				try
+				{
+					handle_request(req_, res);
+				}
+				catch (const exception& e)
+				{
+					cerr << "Error: " << e.what() << endl;
+					prepare_response(res, http::status::internal_server_error, R"({"message": "Internal server error"})");
+				}
 
-				do_write(handle_request(req_, res));
+				const auto elapsed = chrono::duration_cast<chrono::milliseconds>(
+					chrono::system_clock::now() - now
+				).count();
+				print_status(req_, res, elapsed);
+				do_write(res);
 			}
 		});
 	}
